@@ -1,0 +1,3176 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-950">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Estación Médica del Conectoma Humano | Motor Clínico y Análisis 3D en Vivo</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            interstellar: {
+              950: '#020617',
+              900: '#0b1329',
+              800: '#111e3f',
+              700: '#1e293b',
+              500: '#06b6d4',
+              400: '#38bdf8'
+            },
+            biohazard: '#f43f5e',
+            cyber: '#06b6d4',
+            quantum: '#8b5cf6',
+            homeostasis: '#10b981',
+            dopamine: '#f59e0b',
+            serotonin: '#ec4899',
+            glutamate: '#e11d48',
+            gaba: '#3b82f6',
+            acetylcholine: '#14b8a6'
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(2, 6, 23, 0.9);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(14, 165, 233, 0.45);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(56, 189, 248, 0.85);
+    }
+    
+    .hud-glass {
+      background: linear-gradient(135deg, rgba(8, 16, 36, 0.94) 0%, rgba(13, 23, 48, 0.90) 100%);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      box-shadow: 0 8px 32px rgba(2, 6, 23, 0.7), inset 0 0 15px rgba(56, 189, 248, 0.05);
+    }
+
+    .hud-card {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .hud-card:hover {
+      background: rgba(20, 35, 68, 0.9);
+      border-color: rgba(56, 189, 248, 0.65);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(6, 182, 212, 0.25);
+    }
+    .hud-card.active-card {
+      background: linear-gradient(90deg, rgba(6, 182, 212, 0.25) 0%, rgba(14, 116, 144, 0.4) 100%);
+      border-color: #38bdf8;
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.35), inset 0 0 14px rgba(56, 189, 248, 0.25);
+    }
+
+    .reticle-corner {
+      position: relative;
+    }
+    .reticle-corner::before {
+      content: '';
+      position: absolute;
+      top: -1px;
+      left: -1px;
+      width: 7px;
+      height: 7px;
+      border-top: 2px solid #38bdf8;
+      border-left: 2px solid #38bdf8;
+    }
+    .reticle-corner::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      right: -1px;
+      width: 7px;
+      height: 7px;
+      border-bottom: 2px solid #38bdf8;
+      border-right: 2px solid #38bdf8;
+    }
+  </style>
+</head>
+<body class="h-full w-full overflow-hidden text-slate-100 select-none bg-slate-950 font-sans">
+
+  <!-- Main Viewport Container -->
+  <div id="viewport-container" class="relative w-full h-full overflow-hidden">
+    <canvas id="canvas-3d" class="absolute inset-0 w-full h-full z-0 block outline-none cursor-grab active:cursor-grabbing"></canvas>
+
+    <!-- Top Medical Navigation Bar -->
+    <header class="absolute top-0 left-0 right-0 z-20 flex flex-wrap items-center justify-between px-3 sm:px-6 py-2.5 hud-glass border-t-0 border-x-0">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-600 via-sky-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-cyan-500/30 border border-cyan-300/40">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xs sm:text-sm font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-sky-200 to-indigo-300">
+              MOTOR CLÍNICO // CONECTOMA HUMANO Y ANÁLISIS EN VIVO
+            </h1>
+            <span id="engine-mode-badge" class="text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-950/90 text-emerald-300 border border-emerald-500/40 hidden md:inline-block">
+              MODO CLÍNICO ACTIVO
+            </span>
+          </div>
+          <div class="flex items-center gap-3 text-[10px] text-slate-400 font-mono">
+            <span>EXPEDIENTE: <span id="patient-id-display" class="text-cyan-300 font-semibold">#PACIENTE-ESTUDIO-8840</span></span>
+            <span class="text-slate-600">•</span>
+            <span>CRONÓMETRO: <span id="session-time" class="text-emerald-400 font-semibold">00:00</span></span>
+            <span class="text-slate-600">•</span>
+            <span id="system-status-indicator" class="text-emerald-400 font-medium">MOTOR LISTO PARA CARGA</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action buttons in header -->
+      <div class="flex items-center space-x-1 sm:space-x-2 mt-2 sm:mt-0 flex-wrap gap-y-1">
+        <!-- Interactive DEMO Button for Beginners -->
+        <button id="btn-open-demo" title="Guía Interactiva Paso a Paso para Principiantes" class="px-2.5 py-1.5 text-[11px] font-mono font-bold rounded-md bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white border border-amber-300/50 flex items-center gap-1 shadow-lg transition-all cursor-pointer">
+          <span>🎓</span>
+          <span>DEMO / Guía</span>
+        </button>
+
+        <!-- Download Clinical Report Button -->
+        <button id="btn-download-report" title="Descargar Expediente y Reporte de Telemetría (JSON)" class="px-2.5 py-1.5 text-[11px] font-mono font-bold rounded-md bg-gradient-to-r from-cyan-700 to-blue-700 hover:from-cyan-600 hover:to-blue-600 text-white border border-cyan-400/50 flex items-center gap-1.5 shadow-lg transition-all cursor-pointer">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <span class="hidden sm:inline">Descargar Reporte</span>
+          <span class="sm:hidden">Reporte</span>
+        </button>
+
+        <!-- Live API / File Ingestion Hub Button -->
+        <button id="btn-open-ingestion" title="Cargar Archivo Clínico (JSON/CSV) o Conectar Flujo API EEG en Vivo" class="px-2.5 py-1.5 text-[11px] font-mono font-bold rounded-md bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-300/50 flex items-center gap-1.5 shadow-lg transition-all cursor-pointer">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+          </svg>
+          <span class="hidden md:inline">Ingesta & API</span>
+        </button>
+
+        <!-- AI Diagnostic Engine Evaluation Button -->
+        <button id="btn-run-diagnosis" title="Ejecutar Diagnóstico Clínico Automatizado sobre los Datos Actuales" class="px-2.5 py-1.5 text-[11px] font-mono font-bold rounded-md bg-gradient-to-r from-purple-700 to-indigo-600 hover:from-purple-600 hover:to-indigo-500 text-white border border-purple-400/50 flex items-center gap-1.5 shadow-lg transition-all cursor-pointer">
+          <svg class="w-3.5 h-3.5 text-purple-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          <span class="hidden sm:inline">Diagnóstico</span>
+        </button>
+
+        <!-- Cellular High-Resolution Microscope Modal Button -->
+        <button id="btn-toggle-microscope" title="Abrir Microscopio Celular y Patch-Clamp de Alta Resolución" class="px-2.5 py-1.5 text-[11px] font-mono rounded-md bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 flex items-center gap-1.5 transition-all cursor-pointer">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"/>
+          </svg>
+          <span class="hidden lg:inline">Microscopio</span>
+        </button>
+
+        <!-- Toggle Human White Matter Tractography -->
+        <button id="btn-toggle-tracts" title="Visualizar Tractos Blancos del Conectoma Humano" class="px-2.5 py-1.5 text-[11px] font-mono rounded-md bg-purple-950/80 hover:bg-purple-900 border border-purple-500/50 text-purple-300 flex items-center gap-1.5 transition-all cursor-pointer">
+          <svg class="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
+          </svg>
+          <span class="hidden xl:inline">Tractos</span>
+        </button>
+
+        <!-- Calma Homeostatic Protocol Button -->
+        <button id="btn-calm" title="Protocolo de Restablecimiento Homeostático Inmediato" class="px-3 py-1.5 text-[11px] font-mono font-bold rounded-md bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/60 flex items-center gap-1.5 shadow-lg shadow-emerald-950/60 transition-all cursor-pointer">
+          <span class="text-xs">🕊️</span>
+          <span>CALMA</span>
+        </button>
+
+        <!-- Toggle Clean Screen Immersion -->
+        <button id="btn-toggle-immersion" title="Alternar Vista Inmersiva Despejada" class="px-2.5 py-1.5 text-[11px] font-mono rounded-md bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-cyan-300 flex items-center gap-1.5 transition-all cursor-pointer">
+          <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+          </svg>
+          <span class="hidden md:inline" id="immersion-btn-text">Despejar</span>
+        </button>
+
+        <!-- Center 360 Camera -->
+        <button id="btn-reset-cam" title="Restablecer Posición Anatómica Estándar" class="px-2.5 py-1.5 text-[11px] font-mono rounded-md bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-amber-300 flex items-center gap-1 cursor-pointer">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Floating reopen buttons -->
+    <button id="reopen-activities-btn" class="hidden absolute left-3 top-36 z-20 px-3 py-1.5 text-[11px] font-mono rounded-md bg-slate-900/95 text-cyan-300 border border-cyan-500/50 shadow-xl hover:bg-slate-800 transition-all flex items-center gap-2 backdrop-blur-md cursor-pointer">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
+      <span>Protocolos y Tareas</span>
+    </button>
+
+    <button id="reopen-diagnosis-btn" class="hidden absolute right-3 top-36 z-20 px-3 py-1.5 text-[11px] font-mono rounded-md bg-slate-900/95 text-emerald-300 border border-emerald-500/50 shadow-xl hover:bg-slate-800 transition-all flex items-center gap-2 backdrop-blur-md cursor-pointer">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      <span>Medición y Telemetría</span>
+    </button>
+
+    <!-- Left Panel: Functional Connectome Protocols & Categories -->
+    <aside id="panel-activities" class="absolute left-2 sm:left-4 top-20 bottom-4 w-[calc(100%-1rem)] sm:w-84 md:w-96 z-10 hud-glass rounded-xl flex flex-col shadow-2xl overflow-hidden reticle-corner transition-all duration-300">
+      <div class="p-3 border-b border-cyan-900/40 flex items-center justify-between bg-slate-950/70">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+          <h2 class="text-xs font-mono font-bold tracking-wider text-cyan-200 uppercase">BIBLIOTECA FUNCIONAL // CONECTOMA</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="activities-count" class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-cyan-400 border border-cyan-800/60">0 Items</span>
+          <button id="btn-close-activities" class="relative z-10 px-2 py-1 rounded-md text-slate-300 hover:text-white bg-slate-900/80 hover:bg-rose-600/80 border border-slate-700/60 hover:border-rose-400 text-[10px] font-mono flex items-center gap-1 transition-all cursor-pointer shadow-md" title="Cerrar y volver a la vista principal">
+            <span>✕</span>
+            <span class="hidden xs:inline">Cerrar</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Real-time Filter & Search Input -->
+      <div class="p-2.5 border-b border-cyan-900/30 bg-slate-950/40">
+        <div class="relative">
+          <input id="search-input" type="text" placeholder="Buscar tarea humana, TDAH, RMN, biopsia, transmisor..." class="w-full text-xs font-mono bg-slate-900/90 text-cyan-100 placeholder-slate-500 rounded-lg pl-8 pr-3 py-1.5 border border-cyan-900/60 focus:outline-none focus:border-cyan-400 transition-colors">
+          <svg class="w-3.5 h-3.5 text-cyan-500 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Category Subfolders Tabs -->
+      <div class="flex gap-1.5 p-2 overflow-x-auto border-b border-cyan-900/40 bg-slate-950/60 text-[11px] whitespace-nowrap scrollbar-thin">
+        <button data-cat="all" class="cat-tab px-2.5 py-1 rounded-md font-mono font-medium transition-all bg-cyan-600 text-white cursor-pointer">Todos</button>
+        <button data-cat="custom" class="cat-tab px-2.5 py-1 rounded-md font-mono font-bold text-emerald-300 hover:text-white hover:bg-slate-800 border border-emerald-500/40 cursor-pointer">📂 Pacientes / API</button>
+        <button data-cat="vital" class="cat-tab px-2.5 py-1 rounded-md font-mono font-medium text-slate-300 hover:text-white hover:bg-slate-800 cursor-pointer">🍎 Vitales</button>
+        <button data-cat="adhd" class="cat-tab px-2.5 py-1 rounded-md font-mono font-medium text-amber-300 hover:text-white hover:bg-slate-800 border border-amber-500/30 cursor-pointer">⚡ TDAH</button>
+        <button data-cat="mri" class="cat-tab px-2.5 py-1 rounded-md font-mono font-medium text-sky-300 hover:text-white hover:bg-slate-800 border border-sky-500/30 cursor-pointer">🧲 RMN</button>
+        <button data-cat="biopsy" class="cat-tab px-2.5 py-1 rounded-md font-mono font-medium text-rose-300 hover:text-white hover:bg-slate-800 border border-rose-500/30 cursor-pointer">🔬 Biopsia</button>
+        <button data-cat="psych" class="cat-tab px-2.5 py-1 rounded-md font-mono font-medium text-emerald-300 hover:text-white hover:bg-slate-800 border border-emerald-500/30 cursor-pointer">❤️ Afecto</button>
+        <button data-cat="divergent" class="cat-tab px-2.5 py-1 rounded-md font-mono font-medium text-purple-300 hover:text-white hover:bg-slate-800 border border-purple-500/30 cursor-pointer">🔁 TOC/TEA</button>
+        <button data-cat="motor" class="cat-tab px-2.5 py-1 rounded-md font-mono font-medium text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">🏃 Motor</button>
+        <button data-cat="cognitive" class="cat-tab px-2.5 py-1 rounded-md font-mono font-medium text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">💡 Cognición</button>
+      </div>
+
+      <!-- Activity cards list with patient trash icon delete support -->
+      <div id="activities-container" class="flex-1 overflow-y-auto p-2.5 space-y-2"></div>
+    </aside>
+
+    <!-- Right Panel: Telemetry, EEG Oscilloscope, and Live Signal Streaming -->
+    <aside id="panel-diagnosis" class="hidden sm:flex absolute left-2 sm:left-auto right-2 sm:right-4 top-20 bottom-4 w-[calc(100%-1rem)] sm:w-84 md:w-96 z-10 hud-glass rounded-xl flex-col shadow-2xl overflow-hidden reticle-corner transition-all duration-300">
+      <div class="p-3 border-b border-cyan-900/40 flex items-center justify-between bg-slate-950/70">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-emerald-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+          </svg>
+          <h2 class="text-xs font-mono font-bold tracking-wider text-emerald-300 uppercase">TELEMETRÍA Y PROCESAMIENTO CLÍNICO</h2>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <!-- Safe preservation close button -->
+          <button id="btn-close-diagnosis" class="relative z-10 px-2 py-1 rounded-md text-emerald-300 hover:text-white bg-slate-900/90 hover:bg-emerald-600/80 border border-emerald-600/60 hover:border-emerald-400 text-[10px] font-mono flex items-center gap-1 transition-all cursor-pointer shadow-md" title="Salvaguardar telemetría en sesión y cerrar panel">
+            <span>💾</span>
+            <span>Guardar ✕</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-3.5 space-y-3">
+        <!-- Live API Streaming Bar -->
+        <div id="api-stream-indicator-card" class="p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-500/40 flex items-center justify-between text-xs font-mono">
+          <div class="flex items-center gap-2">
+            <span id="api-ping-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+            <div>
+              <span id="api-feed-title" class="text-emerald-300 font-bold block leading-tight">FLUJO CLÍNICO EN LÍNEA</span>
+              <span id="api-packet-counter" class="text-[10px] text-slate-400 font-mono">Muestreo: 256 Hz • Paquetes: 0</span>
+            </div>
+          </div>
+          <button id="btn-toggle-live-stream" class="px-2 py-1 rounded text-[10px] font-bold bg-emerald-700/80 hover:bg-emerald-600 text-white border border-emerald-400/50 transition-all cursor-pointer">
+            PAUSAR FLUJO
+          </button>
+        </div>
+
+        <!-- Active Circuit Card with Stop and Return to Calm button -->
+        <div class="p-3 rounded-lg bg-slate-950/80 border border-cyan-900/50">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-mono text-cyan-400 uppercase tracking-widest">Protocolo / Datos Evaluados</span>
+            <button id="btn-telemetry-stop-calm" class="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-950/80 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/50 flex items-center gap-1 transition-all cursor-pointer" title="Detener actividad en curso y volver a la calma basal">
+              <span>🕊️</span>
+              <span>Detener y Calma</span>
+            </button>
+          </div>
+          <div id="hud-name" class="text-sm font-bold text-white mt-1 flex items-center gap-2"></div>
+          <p id="hud-desc" class="text-xs text-slate-300 mt-1.5 leading-relaxed font-sans"></p>
+        </div>
+
+        <!-- Quantitative Neurophysiology Measurement Grid -->
+        <div class="p-3 rounded-lg bg-slate-950/80 border border-cyan-900/50">
+          <span class="text-[10px] font-mono text-emerald-400 uppercase tracking-wider block mb-2">Mediciones Cuantitativas Calculadas</span>
+          <div class="grid grid-cols-3 gap-2 text-center text-xs font-mono">
+            <div class="p-1.5 rounded bg-slate-900 border border-slate-800">
+              <span class="text-[9px] text-slate-400 block">Voltaje</span>
+              <span id="metric-voltage" class="text-cyan-300 font-bold">-70 mV</span>
+            </div>
+            <div class="p-1.5 rounded bg-slate-900 border border-slate-800">
+              <span class="text-[9px] text-slate-400 block">Latencia</span>
+              <span id="metric-latency" class="text-amber-300 font-bold">14 ms</span>
+            </div>
+            <div class="p-1.5 rounded bg-slate-900 border border-slate-800">
+              <span class="text-[9px] text-slate-400 block">Vel. Axonal</span>
+              <span id="metric-velocity" class="text-emerald-300 font-bold">45 m/s</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Clinical EEG Oscilloscope with FFT Spectrum -->
+        <div class="p-3 rounded-lg bg-slate-950/80 border border-cyan-900/50">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[10px] font-mono text-emerald-400 uppercase tracking-wider">Trazo Electroencefalográfico (EEG 10-20)</span>
+            <span id="hud-freq-label" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 text-emerald-300 border border-emerald-700/60">10 Hz (Alfa)</span>
+          </div>
+          <canvas id="eeg-canvas" class="w-full h-16 rounded bg-black/95 border border-cyan-900/40"></canvas>
+          
+          <!-- FFT Spectral Power Bars -->
+          <div class="grid grid-cols-5 gap-1.5 mt-2 pt-2 border-t border-slate-800 text-[9px] font-mono">
+            <div class="text-center">
+              <span class="text-slate-400 block">Delta (δ)</span>
+              <div class="h-8 bg-slate-900 rounded overflow-hidden flex items-end mt-0.5">
+                <div id="fft-delta" class="w-full bg-cyan-600 transition-all duration-300" style="height: 15%;"></div>
+              </div>
+            </div>
+            <div class="text-center">
+              <span class="text-slate-400 block">Theta (θ)</span>
+              <div class="h-8 bg-slate-900 rounded overflow-hidden flex items-end mt-0.5">
+                <div id="fft-theta" class="w-full bg-indigo-500 transition-all duration-300" style="height: 20%;"></div>
+              </div>
+            </div>
+            <div class="text-center">
+              <span class="text-slate-400 block">Alfa (α)</span>
+              <div class="h-8 bg-slate-900 rounded overflow-hidden flex items-end mt-0.5">
+                <div id="fft-alfa" class="w-full bg-emerald-500 transition-all duration-300" style="height: 80%;"></div>
+              </div>
+            </div>
+            <div class="text-center">
+              <span class="text-slate-400 block">Beta (β)</span>
+              <div class="h-8 bg-slate-900 rounded overflow-hidden flex items-end mt-0.5">
+                <div id="fft-beta" class="w-full bg-amber-500 transition-all duration-300" style="height: 15%;"></div>
+              </div>
+            </div>
+            <div class="text-center">
+              <span class="text-slate-400 block">Gamma (γ)</span>
+              <div class="h-8 bg-slate-900 rounded overflow-hidden flex items-end mt-0.5">
+                <div id="fft-gamma" class="w-full bg-rose-500 transition-all duration-300" style="height: 8%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Axonal Pathway Route -->
+        <div class="p-3 rounded-lg bg-slate-950/80 border border-cyan-900/50">
+          <div class="text-[10px] font-mono text-cyan-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+            <span>Trayectoria Axonal Bioeléctrica Reconstruida</span>
+            <span id="hud-hop-count" class="text-slate-400 text-[9px]">4 Nodos</span>
+          </div>
+          <div id="hud-pathway" class="space-y-1.5 text-xs"></div>
+        </div>
+
+        <!-- Neurotransmitters and Synaptic Impedance Specs -->
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="p-2.5 rounded-lg bg-slate-950/80 border border-cyan-900/50">
+            <span class="text-[10px] font-mono text-slate-400 uppercase block">Biomarcador / Transmisor</span>
+            <span id="hud-neurotransmitter" class="font-mono font-semibold text-cyan-300 mt-1 block">GABA, Serotonina</span>
+          </div>
+          <div class="p-2.5 rounded-lg bg-slate-950/80 border border-cyan-900/50">
+            <span class="text-[10px] font-mono text-slate-400 uppercase block">Carga Sináptica</span>
+            <div class="flex items-center gap-1.5 mt-1">
+              <div class="flex-1 bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
+                <div id="hud-intensity-bar" class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: 20%;"></div>
+              </div>
+              <span id="hud-intensity-val" class="font-mono text-[11px] text-white">20%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Anatomical Cortical Sectors / Brodmann Areas -->
+        <div class="p-2.5 rounded-lg bg-slate-950/80 border border-cyan-900/50">
+          <span class="text-[10px] font-mono text-slate-400 uppercase block mb-1.5">Áreas de Brodmann y Sectores Anatómicos</span>
+          <div id="hud-lobes" class="flex flex-wrap gap-1"></div>
+        </div>
+
+        <!-- Anatomical Node Inspector -->
+        <div id="hud-node-inspector" class="p-3 rounded-lg bg-indigo-950/40 border border-indigo-500/40 text-xs relative">
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-indigo-300 font-mono">INSPECTOR ANATÓMICO:</span>
+            <div class="flex items-center gap-1.5">
+              <span id="inspector-ba" class="text-[9px] font-mono px-1 rounded bg-indigo-900 text-indigo-200">BA 9/46</span>
+              <button id="btn-close-inspector" class="p-1 rounded text-slate-400 hover:text-white hover:bg-rose-600/80 transition-all cursor-pointer" title="Cerrar inspector anatómico">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+          </div>
+          <h4 id="inspector-name" class="font-bold text-white text-xs mt-0.5">Corteza Prefrontal Dorsolateral</h4>
+          <p id="inspector-role" class="text-slate-300 text-[11px] mt-1 leading-relaxed">Control ejecutivo, memoria de trabajo y regulación emocional.</p>
+          <div class="mt-2 pt-2 border-t border-indigo-900/60 text-[10px] text-indigo-200/90 font-mono space-y-0.5">
+            <div>• <span class="text-slate-400">Aferencias:</span> <span id="inspector-afferents">Tálamo, VTA, Cíngulo</span></div>
+            <div>• <span class="text-slate-400">Eferencias:</span> <span id="inspector-efferents">Estriado, M1, Hipocampo</span></div>
+            <div>• <span class="text-rose-400">Déficit por Lesión:</span> <span id="inspector-lesion" class="text-slate-200">Síndrome disejecutivo.</span></div>
+          </div>
+        </div>
+
+        <!-- Clinical Impression Box -->
+        <div id="hud-clinical-box" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-700/40 text-xs text-cyan-200/90 leading-relaxed">
+          <span class="font-bold text-cyan-300 block mb-0.5 font-mono">OBSERVACIÓN CLÍNICA / CORRELACIÓN MÉDICA:</span>
+          <span id="hud-clinical-text"></span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Modal: Interactive DEMO Guide for Beginners -->
+    <div id="modal-demo" class="hidden absolute inset-2 sm:inset-10 z-50 hud-glass rounded-2xl flex flex-col shadow-2xl border-amber-400/50 overflow-hidden backdrop-blur-3xl">
+      <div class="p-3.5 border-b border-amber-900/60 flex items-center justify-between bg-slate-950/90">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-400/40">
+            <span class="text-xl">🎓</span>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold font-mono tracking-wider text-amber-200 uppercase">
+              GUÍA INTERACTIVA DE USO // MODO DEMO PARA PRINCIPIANTES
+            </h3>
+            <p class="text-[10px] text-slate-400 font-mono">Aprende a navegar, activar protocolos, leer el EEG y operar el microscopio celular</p>
+          </div>
+        </div>
+        <button id="btn-close-demo-modal" class="px-3 py-1.5 rounded-lg text-slate-200 hover:text-white bg-slate-900/90 hover:bg-rose-600/80 border border-slate-700/80 hover:border-rose-400 text-xs font-mono flex items-center gap-1.5 transition-all shadow-md cursor-pointer" title="Cerrar guía interactiva">
+          <span>✕</span>
+          <span>Regresar al Principal</span>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+        <!-- Interactive Step Carousel Card -->
+        <div class="p-5 rounded-xl bg-slate-900/90 border border-amber-500/40 flex flex-col justify-between space-y-4">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span id="demo-step-badge" class="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-950 text-amber-300 border border-amber-600/60">
+                PASO 1 DE 5: EXPLORACIÓN 360°
+              </span>
+              <span class="text-[10px] font-mono text-slate-400">Guía práctica en tiempo real</span>
+            </div>
+            <h4 id="demo-step-title" class="text-base sm:text-lg font-bold text-white mb-2 font-mono">
+              Navegación Anatómica y Rotación 360°
+            </h4>
+            <p id="demo-step-desc" class="text-slate-300 text-xs sm:text-sm font-sans leading-relaxed">
+              Haz clic y arrastra con el ratón o desliza con el dedo para girar el cerebro en 360°. Usa la rueda para acercar o alejar. Haz clic en las esferas luminosas para inspeccionar las áreas anatómicas y sus funciones.
+            </p>
+          </div>
+
+          <!-- Step Interactive Action Tester -->
+          <div class="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+            <button id="btn-demo-action" class="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white text-xs font-mono font-bold border border-amber-400 flex items-center gap-2 shadow-lg transition-all cursor-pointer">
+              <span>⚡</span>
+              <span>Probar en Pantalla</span>
+            </button>
+            <div class="flex items-center gap-2">
+              <button id="btn-demo-prev" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs transition-all cursor-pointer">
+                ← Anterior
+              </button>
+              <button id="btn-demo-next" class="px-3 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-mono text-xs font-bold transition-all cursor-pointer">
+                Siguiente →
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Tips Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+          <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
+            <span class="text-cyan-400 font-bold block mb-1">🕊️ Botón CALMA</span>
+            <p class="text-slate-400 text-[11px] font-sans">Detiene cualquier crisis epiléptica, pánico o actividad activa y devuelve el cerebro a su ritmo Alfa de reposo.</p>
+          </div>
+          <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
+            <span class="text-emerald-400 font-bold block mb-1">💾 Salvaguarda EEG</span>
+            <p class="text-slate-400 text-[11px] font-sans">Al pulsar 'Guardar ✕' en telemetría, todas las métricas quedan almacenadas en el expediente del paciente.</p>
+          </div>
+          <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
+            <span class="text-rose-400 font-bold block mb-1">🗑️ Limpiar Pacientes</span>
+            <p class="text-slate-400 text-[11px] font-sans">En la lista de protocolos, usa el icono de papelera para eliminar carpetas de pacientes tras su estudio.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Clinical File Ingestion & API Stream Connector -->
+    <div id="modal-ingestion" class="hidden absolute inset-2 sm:inset-6 z-40 hud-glass rounded-2xl flex flex-col shadow-2xl border-emerald-400/50 overflow-hidden backdrop-blur-3xl">
+      <div class="p-3.5 border-b border-emerald-900/60 flex items-center justify-between bg-slate-950/90">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold font-mono tracking-wider text-emerald-200 uppercase">
+              CENTRO DE INGESTA DE DATOS CLÍNICOS & CONEXIÓN API EN VIVO
+            </h3>
+            <p class="text-[10px] text-slate-400 font-mono">Carga de matrices funcionales, telemetría EEG y enlace con dispositivos médicos</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <!-- Stop and calm button inside Ingestion modal -->
+          <button id="btn-ingestion-stop-calm" class="px-2.5 py-1.5 rounded-lg text-emerald-300 hover:text-white bg-emerald-950/80 hover:bg-emerald-600 border border-emerald-500/50 text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer" title="Detener actividad en curso y volver a la calma basal">
+            <span>🕊️</span>
+            <span>Detener y Calma</span>
+          </button>
+          <button id="btn-close-ingestion" class="px-3 py-1.5 rounded-lg text-slate-200 hover:text-white bg-slate-900/90 hover:bg-rose-600/80 border border-slate-700/80 hover:border-rose-400 text-xs font-mono flex items-center gap-1.5 transition-all shadow-md cursor-pointer" title="Cerrar y volver al mapa principal">
+            <span>✕</span>
+            <span>Regresar al Principal</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 text-xs font-mono">
+        <!-- Left side: File upload & Presets -->
+        <div class="lg:col-span-6 space-y-4">
+          <!-- Drop Area -->
+          <div id="drop-zone" class="border-2 border-dashed border-emerald-500/40 hover:border-emerald-400 bg-slate-900/60 hover:bg-slate-900/90 rounded-xl p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center space-y-2">
+            <svg class="w-10 h-10 text-emerald-400 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <div class="text-slate-200 font-bold">Arrastra aquí tu archivo clínico (.JSON o .CSV)</div>
+            <div class="text-[10px] text-slate-400">Compatible con exportaciones EEG 10-20, matrices de conectividad funcional fMRI y biomarcadores</div>
+            <input type="file" id="file-input" class="hidden" accept=".json,.csv,.txt">
+            <button id="btn-browse-file" class="mt-2 px-3 py-1 rounded-md bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[11px] border border-emerald-400/50 shadow cursor-pointer">
+              Examinar en el Equipo
+            </button>
+          </div>
+
+          <!-- Quick Clinical Datasets Presets -->
+          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+            <span class="text-[11px] font-bold text-cyan-300 uppercase block mb-2">Estudios Clínicos Reales para Demostración:</span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
+              <button data-preset="epilepsy_focus" class="btn-load-preset p-2 rounded bg-slate-950 hover:bg-cyan-950/80 border border-slate-700 hover:border-cyan-500/50 text-left transition-all cursor-pointer">
+                <span class="font-bold text-rose-300 block">⚡ Crisis Focal Temporal Izq.</span>
+                <span class="text-slate-400 text-[9px]">Puntas-onda continuas 34 Hz en hipocampo y amígdala.</span>
+              </button>
+              <button data-preset="adhd_dysconnection" class="btn-load-preset p-2 rounded bg-slate-950 hover:bg-amber-950/80 border border-slate-700 hover:border-amber-500/50 text-left transition-all cursor-pointer">
+                <span class="font-bold text-amber-300 block">⚡ Desacople Fronto-Estriatal</span>
+                <span class="text-slate-400 text-[9px]">TDAH: Ratio Theta/Beta = 4.8 con hipodopaminergia.</span>
+              </button>
+              <button data-preset="stroke_mca" class="btn-load-preset p-2 rounded bg-slate-950 hover:bg-sky-950/80 border border-slate-700 hover:border-sky-500/50 text-left transition-all cursor-pointer">
+                <span class="font-bold text-sky-300 block">🧠 Ictus ACM con Penumbra</span>
+                <span class="text-slate-400 text-[9px]">Enlentecimiento polimorfo Delta y colapso motor.</span>
+              </button>
+              <button data-preset="fmri_matrix" class="btn-load-preset p-2 rounded bg-slate-950 hover:bg-purple-950/80 border border-slate-700 hover:border-purple-500/50 text-left transition-all cursor-pointer">
+                <span class="font-bold text-purple-300 block">🧲 Matriz Conectómica 24x24</span>
+                <span class="text-slate-400 text-[9px]">Red de Modo por Defecto (DMN) e hipercoherencia.</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right side: Device stream simulation & JSON structure preview -->
+        <div class="lg:col-span-6 space-y-4">
+          <!-- Live API / WebSocket Device Stream -->
+          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-emerald-900/50">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[11px] font-bold text-emerald-300 uppercase">Recepción de Datos en Tiempo Real (API / WebSockets)</span>
+              <span id="stream-status-pill" class="text-[9px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700">ACTIVO</span>
+            </div>
+            <div class="space-y-2">
+              <div>
+                <label class="text-[10px] text-slate-400 block mb-1">Punto de enlace (Endpoint API / WebSocket / LSL):</label>
+                <div class="flex gap-2">
+                  <input id="api-endpoint-input" type="text" value="ws://localhost:8080/neural-stream" class="flex-1 bg-slate-950 text-emerald-200 border border-slate-700 rounded px-2.5 py-1 text-[11px] focus:outline-none focus:border-emerald-400 font-mono">
+                  <button id="btn-connect-api" class="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] transition-all cursor-pointer">
+                    Conectar
+                  </button>
+                </div>
+              </div>
+              <div class="text-[10px] text-slate-400 bg-black/60 p-2.5 rounded border border-slate-800 space-y-1">
+                <div>• <span class="text-slate-300">Formato Aceptado:</span> Paquetes JSON con canales EEG microvoltios [uV], matriz de coherencia o espectro FFT.</div>
+                <div>• <span class="text-slate-300">Modo de Demostración:</span> Si no hay un dispositivo físico conectado, el motor genera telemetría sintética de grado médico con latencia real de 4 ms.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- JSON Format Blueprint -->
+          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col h-56">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[10px] font-bold text-slate-300 uppercase">Esquema de Datos Clínicos (Editor / Visor JSON):</span>
+              <button id="btn-apply-json-text" class="text-[9px] px-2 py-0.5 rounded bg-cyan-700 hover:bg-cyan-600 text-white font-bold cursor-pointer">
+                Aplicar Datos y Reconstruir 3D
+              </button>
+            </div>
+            <textarea id="json-editor-input" class="w-full flex-1 bg-black/80 text-cyan-200 font-mono text-[10px] p-2.5 rounded border border-slate-800 focus:outline-none focus:border-cyan-500 resize-none scrollbar-thin" spellcheck="false"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-3 border-t border-emerald-900/60 bg-slate-950/90 flex items-center justify-between">
+        <span class="text-[10px] text-slate-400 font-mono">Los datos procesados actualizan la posición, pulsos axonales y activación del Conectoma 3D en tiempo real.</span>
+        <button id="btn-close-ingestion-bottom" class="px-4 py-1.5 rounded-lg text-slate-300 hover:text-white bg-slate-800 hover:bg-rose-600/80 border border-slate-600 text-xs font-mono transition-all cursor-pointer">
+          Regresar al Principal ✕
+        </button>
+      </div>
+    </div>
+
+    <!-- Modal: Intelligent Clinical Diagnosis & Pathology Recreation -->
+    <div id="modal-diagnosis" class="hidden absolute inset-2 sm:inset-10 z-40 hud-glass rounded-2xl flex flex-col shadow-2xl border-purple-400/50 overflow-hidden backdrop-blur-3xl">
+      <div class="p-3.5 border-b border-purple-900/60 flex items-center justify-between bg-slate-950/90">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-400/40">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold font-mono tracking-wider text-purple-200 uppercase">
+              MOTOR DE DIAGNÓSTICO INTELIGENTE & RECREACIÓN DE PATOLOGÍA 3D
+            </h3>
+            <p class="text-[10px] text-slate-400 font-mono">Evaluación diagnóstica cuantitativa basada en la información clínica cargada</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <!-- Stop and calm button inside Diagnosis modal -->
+          <button id="btn-diag-stop-calm" class="px-2.5 py-1.5 rounded-lg text-emerald-300 hover:text-white bg-emerald-950/80 hover:bg-emerald-600 border border-emerald-500/50 text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer" title="Detener actividad en curso y volver a la calma basal">
+            <span>🕊️</span>
+            <span>Detener y Calma</span>
+          </button>
+          <button id="btn-close-diagnosis-modal" class="px-3 py-1.5 rounded-lg text-slate-200 hover:text-white bg-slate-900/90 hover:bg-rose-600/80 border border-slate-700/80 hover:border-rose-400 text-xs font-mono flex items-center gap-1.5 transition-all shadow-md cursor-pointer" title="Cerrar y volver a la vista principal">
+            <span>✕</span>
+            <span>Regresar al Principal</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 space-y-4 font-mono text-xs">
+        <div id="ai-diagnosis-results" class="space-y-3">
+          <div class="p-4 rounded-xl bg-slate-900/80 border border-purple-900/50 space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <div>
+                <span class="text-[10px] text-slate-400 block">IMPRESIÓN DIAGNÓSTICA CUANTITATIVA:</span>
+                <h4 id="diag-title" class="text-base font-bold text-white mt-0.5">Calculando sobre datos clínicos...</h4>
+              </div>
+              <span id="diag-confidence" class="px-2.5 py-1 rounded bg-purple-950 text-purple-300 border border-purple-600 text-xs font-bold">
+                CONFIANZA: 94.2%
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-[11px]">
+              <div class="p-2.5 rounded bg-slate-950 border border-slate-800">
+                <span class="text-slate-400 text-[10px] block">Foco Anatómico Crítico:</span>
+                <span id="diag-locus" class="text-amber-300 font-bold block mt-0.5">Hipocampo y Lóbulo Temporal Mesial</span>
+              </div>
+              <div class="p-2.5 rounded bg-slate-950 border border-slate-800">
+                <span class="text-slate-400 text-[10px] block">Alteración Neuroquímica:</span>
+                <span id="diag-neurochemical" class="text-rose-300 font-bold block mt-0.5">Glutamato Excitotóxico / Colapso GABA</span>
+              </div>
+              <div class="p-2.5 rounded bg-slate-950 border border-slate-800">
+                <span class="text-slate-400 text-[10px] block">Patrón Espectral Dominante:</span>
+                <span id="diag-spectral" class="text-cyan-300 font-bold block mt-0.5">Polipuntas paroxísticas (34 Hz)</span>
+              </div>
+            </div>
+
+            <div class="p-3 rounded bg-slate-950 border border-slate-800 space-y-1 leading-relaxed">
+              <span class="text-purple-300 font-bold text-[11px] block">DICTAMEN MÉDICO / MECANISMO FISIOPATOLÓGICO:</span>
+              <p id="diag-explanation" class="text-slate-300 font-sans text-xs">
+                Se detecta una hipersincronía bioeléctrica focalizada originada en el hipocampo izquierdo que se propaga a través de la vía perforante. La velocidad de conducción axonal alcanza 95 m/s con depolarizaciones paroxísticas sostenidas.
+              </p>
+            </div>
+
+            <div class="p-3 rounded bg-slate-950 border border-slate-800 space-y-1">
+              <span class="text-emerald-400 font-bold text-[11px] block">RECOMENDACIONES TERAPÉUTICAS & CONDUCTA CLÍNICA:</span>
+              <ul id="diag-recommendations" class="list-disc list-inside text-slate-300 text-[11px] space-y-1 font-sans">
+                <li>Video-EEG prolongado con electrodos esfenoidales para delimitación del área epileptogénica.</li>
+                <li>Protocolo de RMN HARNESS con reconstrucciones coronales T1 volumétricas de 1 mm para descartar esclerosis mesial.</li>
+                <li>Modulación farmacológica prioritaria orientada a receptores GABA-A o bloqueo de canales de Sodio dependientes de voltaje.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-3 border-t border-purple-900/60 bg-slate-950/90 flex flex-wrap items-center justify-between gap-2">
+        <button id="btn-recreate-in-3d" class="px-4 py-1.5 rounded-lg bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-mono text-xs font-bold border border-rose-400 flex items-center gap-2 shadow-lg transition-all cursor-pointer">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span>Recrear y Simular Patología en Conectoma 3D</span>
+        </button>
+        <button id="btn-close-diagnosis-modal-bottom" class="px-3.5 py-1.5 rounded-lg text-slate-300 hover:text-white bg-slate-800 hover:bg-rose-600/80 border border-slate-600 text-xs font-mono transition-all cursor-pointer">
+          Regresar al Principal ✕
+        </button>
+      </div>
+    </div>
+
+    <!-- Modal: Cellular High-Resolution Microscope & Patch-Clamp -->
+    <div id="panel-microscope" class="hidden absolute inset-2 sm:inset-6 z-30 hud-glass rounded-2xl flex flex-col shadow-2xl border-cyan-400/50 overflow-hidden backdrop-blur-3xl">
+      <div class="p-3.5 border-b border-cyan-900/60 flex items-center justify-between bg-slate-950/90">
+        <div class="flex items-center gap-3">
+          <div class="p-2 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">
+            <svg class="w-5 h-5 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"/>
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="text-sm font-black font-mono tracking-wider text-cyan-200 uppercase">
+                MICROSCOPIO DE RESOLUCIÓN CELULAR & ELECTROFISIOLOGÍA PATCH-CLAMP
+              </h3>
+              <span class="text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/50">
+                ESCALA NANOMÉTRICA (20 nm)
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-400 font-mono">
+              Foco Celular: <span id="micro-hub-target-name" class="text-white font-bold">Corteza Prefrontal Dorsolateral</span> • Transmisor Primario: <span id="micro-transmitter-active" class="text-amber-300 font-semibold">GABA, Serotonina</span>
+            </p>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+          <!-- Stop and Calm button inside Microscope -->
+          <button id="btn-microscope-stop-calm" class="px-2.5 py-1.5 rounded-lg text-emerald-300 hover:text-white bg-emerald-950/80 hover:bg-emerald-600 border border-emerald-500/50 text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer" title="Detener actividad en curso y volver a la calma basal">
+            <span>🕊️</span>
+            <span>Detener y Calma</span>
+          </button>
+
+          <button id="btn-focus-current-hub" title="Aproximar cámara 3D al soma de esta neurona" class="px-3 py-1.5 text-xs font-mono rounded-lg bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-400/50 flex items-center gap-1.5 transition-all cursor-pointer">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+            <span>Zoom 3D a Neurona</span>
+          </button>
+          
+          <button id="btn-close-microscope" class="px-3 py-1.5 rounded-lg text-slate-200 hover:text-white bg-slate-900/90 hover:bg-rose-600/80 border border-slate-700/80 hover:border-rose-400 text-xs font-mono flex items-center gap-1.5 transition-all shadow-md cursor-pointer" title="Cerrar y volver a la vista principal">
+            <span>✕</span>
+            <span>Regresar al Principal</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Cellular Synaptic Junction Canvas (Exocytosis simulation) -->
+        <div class="p-3.5 rounded-xl bg-slate-950/80 border border-cyan-900/60 flex flex-col">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+              <span class="text-xs font-mono font-bold text-cyan-300 uppercase">Hendidura Sináptica: Exocitosis de Vesículas</span>
+            </div>
+            <span class="text-[10px] font-mono text-slate-400">Distancia: 20 nm</span>
+          </div>
+          <div class="relative flex-1 min-h-[220px] rounded-lg overflow-hidden border border-slate-800 bg-black/90">
+            <canvas id="synapse-canvas" class="w-full h-full block"></canvas>
+            <div class="absolute bottom-2 left-2 text-[9px] font-mono text-slate-400 bg-slate-950/80 px-2 py-1 rounded border border-slate-800">
+              🔵 Botón Presináptico • 🟡 Vesículas activas • 🟣 Espina Dendrítica
+            </div>
+          </div>
+          <div class="mt-2.5 text-[11px] text-slate-300 font-sans leading-relaxed bg-slate-900/70 p-2.5 rounded-lg border border-slate-800">
+            <span class="text-cyan-300 font-mono font-bold block mb-0.5">DINÁMICA MOLECULAR EN VIVO:</span>
+            <span id="micro-explanation-text">El potencial de acción arriba al terminal axónico provocando la apertura de canales de Calcio dependientes de voltaje. El influjo de Ca2+ induce la fusión del complejo SNARE y la liberación cuántica del neurotransmisor hacia los receptores postsinápticos.</span>
+          </div>
+        </div>
+
+        <!-- Electrophysiology Patch-Clamp and Ion Fluxes -->
+        <div class="p-3.5 rounded-xl bg-slate-950/80 border border-cyan-900/60 flex flex-col space-y-3">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-xs font-mono font-bold text-emerald-300 uppercase">Fijación de Voltaje (Patch-Clamp de Célula Entera)</span>
+              </div>
+              <span id="patch-voltage" class="text-xs font-mono font-bold text-cyan-300">-70.0 mV</span>
+            </div>
+            <div class="relative h-32 rounded-lg overflow-hidden border border-slate-800 bg-black/90">
+              <canvas id="patch-clamp-canvas" class="w-full h-full block"></canvas>
+              <div class="absolute top-1.5 left-2 text-[9px] font-mono text-emerald-400/80">
+                Curva Hodgkin-Huxley: Reposo (-70mV) ➔ Umbral (-55mV) ➔ Espiga (+35mV) ➔ Repolarización
+              </div>
+            </div>
+          </div>
+
+          <!-- Ion Gradients & Channels Status -->
+          <div class="p-3 rounded-lg bg-slate-900/90 border border-slate-800">
+            <span class="text-[10px] font-mono text-cyan-400 uppercase tracking-wider block mb-2">Gradientes Iónicos y Canales Transmembrana</span>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs font-mono">
+              <div class="p-2 rounded bg-slate-950 border border-slate-800">
+                <span class="text-[10px] text-amber-400 block font-bold">Na+ (Sodio)</span>
+                <span id="ion-na" class="text-white font-bold mt-0.5 block">+140 mM</span>
+                <div class="h-1.5 bg-slate-800 rounded-full mt-1.5 overflow-hidden">
+                  <div id="ion-na-bar" class="h-full bg-amber-400 transition-all duration-300" style="width: 75%;"></div>
+                </div>
+              </div>
+              <div class="p-2 rounded bg-slate-950 border border-slate-800">
+                <span class="text-[10px] text-purple-400 block font-bold">K+ (Potasio)</span>
+                <span id="ion-k" class="text-white font-bold mt-0.5 block">+4.2 mM</span>
+                <div class="h-1.5 bg-slate-800 rounded-full mt-1.5 overflow-hidden">
+                  <div id="ion-k-bar" class="h-full bg-purple-400 transition-all duration-300" style="width: 45%;"></div>
+                </div>
+              </div>
+              <div class="p-2 rounded bg-slate-950 border border-slate-800">
+                <span class="text-[10px] text-cyan-400 block font-bold">Ca2+ (Calcio)</span>
+                <span id="ion-ca" class="text-white font-bold mt-0.5 block">1.8 mM</span>
+                <div class="h-1.5 bg-slate-800 rounded-full mt-1.5 overflow-hidden">
+                  <div id="ion-ca-bar" class="h-full bg-cyan-400 transition-all duration-300" style="width: 70%;"></div>
+                </div>
+              </div>
+              <div class="p-2 rounded bg-slate-950 border border-slate-800">
+                <span class="text-[10px] text-rose-400 block font-bold">Cl- (Cloro)</span>
+                <span id="ion-cl" class="text-white font-bold mt-0.5 block">105 mM</span>
+                <div class="h-1.5 bg-slate-800 rounded-full mt-1.5 overflow-hidden">
+                  <div id="ion-cl-bar" class="h-full bg-rose-400 transition-all duration-300" style="width: 35%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-2.5 rounded-lg bg-cyan-950/30 border border-cyan-800/40 text-[11px] font-mono text-cyan-200 flex items-center justify-between">
+            <span>ESTADO DE CONDUCCIÓN AXONAL:</span>
+            <span id="micro-conduction-mode" class="px-2 py-0.5 rounded bg-cyan-900/80 text-cyan-300 font-bold border border-cyan-500/50">
+              CONDUCCIÓN SALTATORIA • MIELINA INTACTA
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Telemetry HUD: 360 Rotation Angle & Tractography Status -->
+    <div class="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 z-10 hud-glass px-4 py-1.5 rounded-full flex items-center gap-3 text-[11px] font-mono text-cyan-200 shadow-2xl border-cyan-500/40">
+      <div class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+        <span>EJE CORTICAL 360°: <span id="telemetry-angle">0.0°</span></span>
+      </div>
+      <span class="text-slate-600">|</span>
+      <span class="text-emerald-300 hidden md:inline">DATOS: <span id="data-engine-status" class="font-bold text-white">RECONSTRUCCIÓN ACTIVA</span></span>
+      <span class="text-slate-600">|</span>
+      <span class="hidden sm:inline text-slate-400">Rotación 360° con arrastre • Zoom con rueda</span>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 hud-glass px-4 py-2 rounded-lg text-xs font-mono font-semibold text-white shadow-2xl border-cyan-400/60 flex items-center gap-2 pointer-events-none opacity-0 transition-opacity duration-300">
+    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+    <span id="toast-msg">Mensaje</span>
+  </div>
+
+  <script>
+    const BRAIN_HUBS = {
+      pfc_left: {
+        name: "Corteza Prefrontal Dorsolateral Izq. (DLPFC)",
+        pos: [-1.45, 1.25, 2.2],
+        color: 0x38bdf8,
+        lobe: "Frontal",
+        ba: "BA 9 / 46",
+        role: "Control ejecutivo consciente, memoria de trabajo y resolución abstracta.",
+        afferents: "Tálamo anterior, VTA dopaminérgico, Cíngulo",
+        efferents: "Estriado dorsal, Corteza premotora, Hipocampo",
+        lesion: "Síndrome disejecutivo, apatía, abulia y pérdida de planificación estratégica."
+      },
+      pfc_right: {
+        name: "Corteza Prefrontal Dorsolateral Der. (DLPFC)",
+        pos: [1.45, 1.25, 2.2],
+        color: 0x38bdf8,
+        lobe: "Frontal",
+        ba: "BA 9 / 46",
+        role: "Inhibición de conductas impulsivas y monitoreo espacial de contingencias.",
+        afferents: "Tálamo, VTA, Corteza Parietal Posterior",
+        efferents: "Núcleo subtalámico, Estriado, Límbico",
+        lesion: "Impulsividad severa, hiperactividad y desinhibición conductual."
+      },
+      ofc: {
+        name: "Corteza Orbitofrontal (OFC)",
+        pos: [0.0, 0.4, 2.5],
+        color: 0xf59e0b,
+        lobe: "Frontal",
+        ba: "BA 11 / 47",
+        role: "Evaluación del valor subjetivo y cálculo de coste-beneficio en recompensas.",
+        afferents: "Amígdala, Ínsula, VTA, Tálamo dorsomedial",
+        efferents: "Estriado ventral (Accumbens), Hipotálamo",
+        lesion: "Síndrome pseudopsicopático, desinhibición moral y sociopatía adquirida (caso Phineas Gage)."
+      },
+      acc: {
+        name: "Corteza Cingulada Anterior (ACC)",
+        pos: [0.0, 1.6, 1.2],
+        color: 0xec4899,
+        lobe: "Límbico",
+        ba: "BA 24 / 32",
+        role: "Detección de errores cognitivos (ERN), dolor afectivo y conflicto decisional.",
+        afferents: "Locus coeruleus, Amígdala, Tálamo anterior",
+        efferents: "DLPFC, Sustancia Gris Periacueductal (PAG)",
+        lesion: "Mutismo acinético, pérdida de motivación y abulia extrema."
+      },
+      motor_cortex: {
+        name: "Corteza Motora Primaria (Giro Precentral / M1)",
+        pos: [0.0, 2.45, 0.2],
+        color: 0x10b981,
+        lobe: "Frontal",
+        ba: "BA 4",
+        role: "Generación de impulsos motores córtico-espinales para movimientos voluntarios.",
+        afferents: "Área premotora, Tálamo ventral anterior (VA/VL), S1",
+        efferents: "Vía piramidal córtico-espinal hacia motoneuronas alfa",
+        lesion: "Parálisis espástica contralateral (paresia/plejía) con signo de Babinski positivo."
+      },
+      premotor: {
+        name: "Área Premotora y Motora Suplementaria (SMA)",
+        pos: [0.0, 2.3, 0.95],
+        color: 0x34d399,
+        lobe: "Frontal",
+        ba: "BA 6",
+        role: "Planificación de secuencias motoras complejas y coordinación bimanual.",
+        afferents: "Ganglios basales vía tálamo, Corteza parietal",
+        efferents: "Corteza motora primaria (M1), Tronco cerebral",
+        lesion: "Apraxia ideomotora y pérdida de fluidez en secuencias motoras aprendidas."
+      },
+      broca: {
+        name: "Área de Broca (Pars Opercularis / Triangularis)",
+        pos: [-2.15, 0.85, 1.4],
+        color: 0x818cf8,
+        lobe: "Frontal",
+        ba: "BA 44 / 45",
+        role: "Programación motora del lenguaje articulado y sintaxis gramatical.",
+        afferents: "Área de Wernicke vía Fascículo Arqueado",
+        efferents: "Corteza motora primaria facial y laríngea",
+        lesion: "Afasia motora de Broca: habla no fluida con comprensión preservada."
+      },
+      wernicke: {
+        name: "Área de Wernicke (Giro Temporal Superior Post.)",
+        pos: [-2.2, 0.7, -1.0],
+        color: 0x6366f1,
+        lobe: "Temporal",
+        ba: "BA 22",
+        role: "Decodificación semántica y comprensión fonológica del lenguaje humano.",
+        afferents: "Corteza auditiva primaria (giros de Heschl)",
+        efferents: "Área de Broca (vía Fascículo Arqueado), Lóbulo Parietal",
+        lesion: "Afasia sensitiva de Wernicke: habla fluida parafásica con grave déficit de comprensión."
+      },
+      sensory_cortex: {
+        name: "Corteza Somatosensorial Primaria (Giro Postcentral / S1)",
+        pos: [0.0, 2.2, -0.65],
+        color: 0xa855f7,
+        lobe: "Parietal",
+        ba: "BA 1, 2, 3",
+        role: "Procesamiento discriminativo táctil, propioceptivo y nociceptivo corporal.",
+        afferents: "Núcleo ventral posterolateral del tálamo (VPL)",
+        efferents: "Corteza parietal posterior, Corteza motora (M1)",
+        lesion: "Hipoestesia y astereognosia contralateral."
+      },
+      insula: {
+        name: "Corteza Insular Anterior (Interocepción)",
+        pos: [-1.55, 0.25, 0.65],
+        color: 0xf97316,
+        lobe: "Ínsula",
+        ba: "BA 13 / 14",
+        role: "Conciencia interoceptiva visceral, dolor, asco y empatía somática.",
+        afferents: "Tracto solitario vía tálamo VPM, Fibras C vagales",
+        efferents: "Corteza cingulada anterior (ACC), Amígdala",
+        lesion: "Atenuación de la experiencia emotiva consciente y sensibilidad visceral."
+      },
+      pcc: {
+        name: "Corteza Cingulada Posterior / Precúneo (DMN)",
+        pos: [0.0, 1.5, -1.25],
+        color: 0x4f46e5,
+        lobe: "Parietal",
+        ba: "BA 23 / 31",
+        role: "Núcleo maestro de la Red Neuronal por Defecto (DMN): introspección y memoria autobiográfica.",
+        afferents: "Hipocampo, Corteza entorrinal, DLPFC",
+        efferents: "Corteza prefrontal ventromedial, Hipocampo",
+        lesion: "Falla en la memoria autobiográfica y estado de conciencia disminuido."
+      },
+      amygdala: {
+        name: "Complejo Amigdalino (Núcleo Basolateral y Central)",
+        pos: [1.25, -0.4, 0.7],
+        color: 0xef4444,
+        lobe: "Límbico",
+        ba: "Área Subcortical",
+        role: "Asignación de valencia emocional, condicionamiento al miedo y alerta defensiva.",
+        afferents: "Tálamo sensorial rápido, Corteza olfatoria, Hipocampo",
+        efferents: "Hipotálamo (eje HPA), Locus coeruleus, Tronco cerebral",
+        lesion: "Síndrome de Klüver-Bucy: ausencia patológica de miedo y docilidad extrema."
+      },
+      hippocampus: {
+        name: "Hipocampo y Giro Dentado (Circuito de Papez)",
+        pos: [-1.4, -0.5, -0.4],
+        color: 0x06b6d4,
+        lobe: "Temporal",
+        ba: "Arquicorteza",
+        role: "Consolidación de memoria declarativa episódica y navegación espacial.",
+        afferents: "Corteza entorrinal (vía perforante)",
+        efferents: "Fórnix hacia cuerpos mamilares y tálamo anterior",
+        lesion: "Amnesia anterógrada total irreversible (caso clásico H.M.)."
+      },
+      striatum: {
+        name: "Cuerpo Estriado (Núcleo Caudado y Putamen / Accumbens)",
+        pos: [0.75, 0.45, 1.1],
+        color: 0xeab308,
+        lobe: "Ganglios Basales",
+        ba: "Núcleos Subcorticales",
+        role: "Selección del plan de acción motor y refuerzo por recompensa fásica.",
+        afferents: "Corteza cerebral completa, Sustancia Negra compacta",
+        efferents: "Globo Pálido interno, Sustancia Negra reticular",
+        lesion: "Corea de Huntington o parkinsonismo hipocinético."
+      },
+      vta: {
+        name: "Área Tegmentaria Ventral y Sustancia Negra (Mesencéfalo)",
+        pos: [0.0, -0.5, 0.2],
+        color: 0xf59e0b,
+        lobe: "Mesencéfalo",
+        ba: "Núcleo Dopaminérgico A10/A9",
+        role: "Origen del sistema dopaminérgico mesolímbico y nigroestriatal.",
+        afferents: "Hipotálamo lateral, Habénula, Amígdala",
+        efferents: "Núcleo Accumbens, Corteza Prefrontal, Estriado dorsal",
+        lesion: "Anhedonia severa, pérdida motivacional y enfermedad de Parkinson."
+      },
+      thalamus: {
+        name: "Tálamo (Relevo Sensorial y Compuerta Cortical)",
+        pos: [0.0, 0.8, 0.0],
+        color: 0x22d3ee,
+        lobe: "Diencéfalo",
+        ba: "Relevo Nuclear Central",
+        role: "Compuerta de filtrado de todas las vías sensoriales y marcapasos córtico-talámico.",
+        afferents: "Lemnisco medial, Cóclea, Retina, Médula espinal",
+        efferents: "Toda la corteza cerebral mediante radiaciones talámicas",
+        lesion: "Síndrome de Déjerine-Roussy o coma por desaferenciación."
+      },
+      hypothalamus: {
+        name: "Hipotálamo (Centro Maestro Neurovegetativo)",
+        pos: [0.0, -0.22, 0.82],
+        color: 0xf43f5e,
+        lobe: "Diencéfalo",
+        ba: "Núcleos Neuroendocrinos",
+        role: "Control homeostático vital: balance hídrico, temperatura y eje hipófisis.",
+        afferents: "Ínsula, Núcleo del tracto solitario, Amígdala",
+        efferents: "Glándula Hipófisis, Tronco autonómico simpático/parasimpático",
+        lesion: "Diabetes insípida, hipotermia o disautonomía severa."
+      },
+      auditory_cortex: {
+        name: "Corteza Auditiva Primaria (Giro de Heschl)",
+        pos: [-2.35, 0.4, -0.3],
+        color: 0x14b8a6,
+        lobe: "Temporal",
+        ba: "BA 41 / 42",
+        role: "Organización tonotópica y procesamiento auditivo coclear primario.",
+        afferents: "Cuerpo geniculado medial (MGB) del tálamo",
+        efferents: "Área de Wernicke, Corteza auditiva asociativa",
+        lesion: "Sordera cortical bilateral o agnosia auditiva verbal."
+      },
+      visual_cortex: {
+        name: "Corteza Visual Primaria (Cisura Calcarina / V1)",
+        pos: [0.0, 0.6, -2.7],
+        color: 0x8b5cf6,
+        lobe: "Occipital",
+        ba: "BA 17",
+        role: "Procesamiento retinotópico de orientación y contraste visual primario.",
+        afferents: "Cuerpo geniculado lateral (LGB) del tálamo",
+        efferents: "Vía dorsal visual ('dónde') y ventral ('qué')",
+        lesion: "Hemianopsia homónima contralateral con preservación macular."
+      },
+      cerebellum: {
+        name: "Cerebelo (Hemisferios y Vermis)",
+        pos: [0.0, -1.6, -2.0],
+        color: 0x0ea5e9,
+        lobe: "Cerebelo",
+        ba: "Corteza Cerebelosa Triestratificada",
+        role: "Metría, corrección de errores motores y coordinación procedimental.",
+        afferents: "Fibras musgosas y trepadoras desde puente de Varolio",
+        efferents: "Núcleos dentados hacia el tálamo motor y núcleo rojo",
+        lesion: "Ataxia cerebelosa, dismetría y temblor intencional."
+      },
+      brainstem: {
+        name: "Tronco Encefálico (Bulbo y Protuberancia)",
+        pos: [0.0, -2.4, -0.6],
+        color: 0x64748b,
+        lobe: "Tronco Encefálico",
+        ba: "Centros Vitales Autónomos",
+        role: "Generador del ritmo respiratorio (Pre-Bötzinger) y marcapasos vasomotor.",
+        afferents: "Barorreceptores y quimiorreceptores vía glosofaríngeo/vago",
+        efferents: "Sistema simpático y nervio vago preganglionar",
+        lesion: "Paro cardiorrespiratorio inminente o Locked-in syndrome."
+      },
+      barrington: {
+        name: "Centro Miccional de Barrington (Protuberancia)",
+        pos: [0.0, -1.8, -0.4],
+        color: 0x0284c7,
+        lobe: "Protuberancia",
+        ba: "Complejo Pontino M",
+        role: "Control reflejo coordinado de la micción y esfínteres viscerales.",
+        afferents: "Sustancia gris periacueductal (PAG), Médula espinal",
+        efferents: "Núcleo de Onuf y motoneuronas parasimpáticas",
+        lesion: "Retención urinaria aguda por disinergia vésico-esfinteriana."
+      }
+    };
+
+    const HUMAN_TRACTS = [
+      { name: "Fascículo Arqueado (Lenguaje)", from: "wernicke", to: "broca", color: 0x8b5cf6, width: 0.045 },
+      { name: "Haz Córtico-Espinal Piramidal", from: "motor_cortex", to: "brainstem", color: 0x10b981, width: 0.05 },
+      { name: "Circuito de Papez (Fórnix)", from: "hippocampus", to: "thalamus", color: 0x06b6d4, width: 0.04 },
+      { name: "Fascículo Cingulado", from: "acc", to: "pcc", color: 0xec4899, width: 0.04 },
+      { name: "Conexión Interhemisférica (Cuerpo Calloso)", from: "pfc_left", to: "pfc_right", color: 0x38bdf8, width: 0.05 },
+      { name: "Vía Mesolímbica de Recompensa", from: "vta", to: "striatum", color: 0xf59e0b, width: 0.045 },
+      { name: "Radiación Sensorial Talámica", from: "thalamus", to: "sensory_cortex", color: 0xa855f7, width: 0.04 },
+      { name: "Haz Espino-Cerebeloso", from: "cerebellum", to: "brainstem", color: 0x0ea5e9, width: 0.045 }
+    ];
+
+    const CLINICAL_PRESETS = {
+      epilepsy_focus: {
+        id: "clinic_epilepsy_focus",
+        name: "Estudio Clínico: Crisis Focal Temporal Izquierda",
+        cat: "custom",
+        icon: "⚡",
+        desc: "Descargas continuas punta-onda y polipuntas de alto voltaje en asta de Amón hipocampal izquierda propagadas al lóbulo temporal y corteza motora.",
+        route: ["hippocampus", "amygdala", "auditory_cortex", "motor_cortex"],
+        transmitter: "Glutamato descontrolado (excitotoxicidad focal), colapso GABA",
+        intensity: 98,
+        eegFreq: "Puntas-onda paroxísticas (34 Hz)",
+        eegSpeed: 0.09,
+        voltage: "+35 mV",
+        latency: "4 ms",
+        velocity: "95 m/s",
+        fft: [10, 15, 20, 60, 98],
+        lobes: ["Lóbulo Temporal Mesial", "Giro Parahipocampal", "M1"],
+        clinical: "Descarga epiléptica focal con alto riesgo de generalización secundaria. Se observa colapso del potencial de reposo e hiperpolarización post-descarga deficiente.",
+        focalHub: "hippocampus",
+        diagnosisInfo: {
+          title: "Crisis Parcial Compleja / Epilepsia del Lóbulo Temporal",
+          confidence: "98.4%",
+          locus: "Hipocampo Izquierdo y Complejo Amigdalino",
+          neurochemical: "Glutamato tóxico sin frenado GABAérgico",
+          spectral: "Polipuntas-onda de alto voltaje (34 Hz) en derivaciones temporales T3/T5",
+          explanation: "Los registros electroencefalográficos confirman un foco epileptógeno activo en el asta de Amón izquierda. Existe una propagación eferente acelerada hacia la corteza temporal y el área motora.",
+          recommendations: [
+            "Evaluación por epileptología para inicio de bloqueadores de canales de Na+ dependientes de voltaje.",
+            "RMN 3 Tesla protocolo de epilepsia con cortes coronales T1 volumétricos perpendiculares al eje hipocampal.",
+            "Monitorización continua de video-EEG para delimitación quirúrgica en caso de refractariedad."
+          ]
+        }
+      },
+      adhd_dysconnection: {
+        id: "clinic_adhd_dys",
+        name: "Estudio Clínico: Desacople Fronto-Estriatal Severo",
+        cat: "custom",
+        icon: "⚡",
+        desc: "Déficit dopaminérgico tónico en corteza prefrontal y cuerpo estriado con elevado ratio Theta/Beta indicativo de hipoactivación cortical ejecutiva.",
+        route: ["pfc_left", "ofc", "striatum", "thalamus"],
+        transmitter: "Dopamina fásica irregular, Noradrenalina baja",
+        intensity: 45,
+        eegFreq: "Ratio Theta/Beta Elevado (5 Hz)",
+        eegSpeed: 0.025,
+        voltage: "-72 mV",
+        latency: "26 ms",
+        velocity: "36 m/s",
+        fft: [20, 78, 25, 18, 8],
+        lobes: ["DLPFC", "Corteza Orbitofrontal", "Núcleo Accumbens"],
+        clinical: "Desconexión fronto-estriatal cuantificada: fallo en la selección de planes de acción y mantenimiento atencional sostenido.",
+        focalHub: "pfc_left",
+        diagnosisInfo: {
+          title: "TDAH Combinado con Falla Ejecutiva y Desacople de Red",
+          confidence: "91.8%",
+          locus: "Eje Corteza Prefrontal Dorsolateral Izquierda - Cuerpo Estriado",
+          neurochemical: "Hipo-activación de receptores D1/D2 en estriado ventral",
+          spectral: "Exceso de potencia en banda Theta frontal (4-7 Hz) con ratio Theta/Beta = 4.3",
+          explanation: "La matriz de conectividad funcional demuestra una atenuación crítica de las señales excitadoras hacia el caudado y putamen, impidiendo el inicio ágil de tareas ejecutivas sin refuerzo inmediato.",
+          recommendations: [
+            "Evaluación de terapia de biofeedback cuantitativo para reducción de potencia Theta frontal.",
+            "Optimización de soporte dopaminérgico y noradrenérgico según criterio de neuropsiquiatría.",
+            "Estrategias de andamiaje conductual con temporizadores y desgloses de pasos motores."
+          ]
+        }
+      },
+      stroke_mca: {
+        id: "clinic_stroke_mca",
+        name: "Estudio Clínico: ACV Isquémico Agudo (ACM Izquierda)",
+        cat: "custom",
+        icon: "🧠",
+        desc: "Colapso del flujo sanguíneo con falla de la bomba Na+/K+ ATPasa y edema citotóxico en el territorio de la arteria cerebral media.",
+        route: ["motor_cortex", "sensory_cortex", "broca", "thalamus"],
+        transmitter: "Glutamato masivo (excitotoxicidad anóxica)",
+        intensity: 92,
+        eegFreq: "Onda Delta polimórfica continua (1.8 Hz)",
+        eegSpeed: 0.012,
+        voltage: "-40 mV",
+        latency: "45 ms",
+        velocity: "18 m/s",
+        fft: [92, 45, 10, 5, 2],
+        lobes: ["Corteza Fronto-Parietal Izquierda", "Territorio ACM"],
+        clinical: "Emergencia neurovascular crítica. Se detecta enlentecimiento polimorfo delta frontal difuso y bloqueo de la conducción axonal piramidal.",
+        focalHub: "motor_cortex",
+        diagnosisInfo: {
+          title: "Infarto Cerebral Isquémico Agudo con Área de Penumbra",
+          confidence: "96.5%",
+          locus: "Territorio Frontoparietal de Arteria Cerebral Media Izquierda",
+          neurochemical: "Cascada de muerte celular por sobrecarga de Calcio intracelular",
+          spectral: "Depresión de ritmos rápidos con dominancia masiva de ondas Delta polimórficas (1-2 Hz)",
+          explanation: "La simulación confirma pérdida del gradiente electroquímico transmembrana en el giro precentral y área de Broca, compatible con déficit hemisférico focal agudo.",
+          recommendations: [
+            "Activación inmediata de Código Ictus y neuroimagen multimodal (Angio-TC / RMN DWI-PWI).",
+            "Evaluación urgente para trombectomía mecánica o terapia de reperfusión según ventana terapéutica.",
+            "Monitoreo neurocrítico de presión de perfusión cerebral y control estricto de osmolaridad sérica."
+          ]
+        }
+      },
+      fmri_matrix: {
+        id: "clinic_fmri_matrix",
+        name: "Estudio Clínico: Hiperconectividad DMN (Depresión Resistente)",
+        cat: "custom",
+        icon: "🧲",
+        desc: "Matriz funcional fMRI 24x24 que muestra reverberación hiperconectada entre corteza cingulada posterior y corteza prefrontal medial.",
+        route: ["pcc", "acc", "hippocampus", "pfc_left"],
+        transmitter: "Serotonina basal deprimida, BDNF disminuido",
+        intensity: 50,
+        eegFreq: "Asimetría Alfa Frontal (8 Hz)",
+        eegSpeed: 0.022,
+        voltage: "-74 mV",
+        latency: "28 ms",
+        velocity: "38 m/s",
+        fft: [35, 55, 65, 15, 5],
+        lobes: ["Corteza Cingulada Posterior (DMN)", "Cíngulo Subgenual BA25"],
+        clinical: "Patrón conectómico de rumiación autorreferencial con desacople de la red de control ejecutivo central.",
+        focalHub: "pcc",
+        diagnosisInfo: {
+          title: "Trastorno Depresivo Mayor con Hiperconectividad de la Red por Defecto",
+          confidence: "92.0%",
+          locus: "Eje Cingulado Posterior (PCC) - Cíngulo Subgenual (Área 25)",
+          neurochemical: "Baja disponibilidad monoaminérgica con hiponeurogénesis hipocampal",
+          spectral: "Asimetría Alfa frontal izquierda significativa y exceso de coherencia parietal lenta",
+          explanation: "La arquitectura funcional del conectoma está anclada en un bucle cerrado introspectivo. La red frontoparietal no logra atenuar la actividad del cíngulo posterior ante estímulos externos.",
+          recommendations: [
+            "Considerar protocolos de Estimulación Magnética Transcraneal (rTMS) sobre la DLPFC izquierda.",
+            "Evaluación de intervenciones basadas en neuroplasticidad e inhibición del circuito de rumiación.",
+            "Seguimiento volumétrico hipocampal y modulación chronobiológica del eje circadiano."
+          ]
+        }
+      }
+    };
+
+    const MASTER_DATA = [
+      // 🕊️ CALMA / HOMEOSTASIS BASAL
+      {
+        id: "calma_basal",
+        name: "Homeostasis Vagal (Estado Basal)",
+        cat: "vital",
+        icon: "🕊️",
+        desc: "Restablecimiento parasimpático del tono neural basal. Disminución de la excitabilidad sináptica e inducción de sincronía en banda Alfa.",
+        route: ["thalamus", "pfc_left", "acc", "brainstem"],
+        transmitter: "GABA basal, Serotonina, Acetilcolina",
+        intensity: 20,
+        eegFreq: "Ritmo Alfa Sincronizado (10 Hz)",
+        eegSpeed: 0.022,
+        voltage: "-70 mV",
+        latency: "18 ms",
+        velocity: "55 m/s",
+        fft: [15, 20, 80, 15, 8],
+        lobes: ["Tálamo", "Corteza Prefrontal", "Cíngulo Anterior", "Tronco Encefálico"],
+        clinical: "Equilibrio neurovegetativo restaurado: modulación del nervio vago y cese de focos hipercinéticos o paroxísticos.",
+        focalHub: "thalamus"
+      },
+
+      // CLINICAL PRESETS INTEGRATED IN DATABASE
+      CLINICAL_PRESETS.epilepsy_focus,
+      CLINICAL_PRESETS.adhd_dysconnection,
+      CLINICAL_PRESETS.stroke_mca,
+      CLINICAL_PRESETS.fmri_matrix,
+
+      // 🍎 VITALES HUMANAS PRIMARIAS
+      {
+        id: "comer",
+        name: "Comer (Apetito e Ingesta)",
+        cat: "vital",
+        icon: "🥣",
+        desc: "Señales metabólicas de ghrelina activan el hipotálamo ventromedial, el sistema de recompensa y la coordinación de masticación y deglución.",
+        route: ["hypothalamus", "striatum", "insula", "motor_cortex"],
+        transmitter: "Ghrelina, Dopamina, Orexina",
+        intensity: 85,
+        eegFreq: "Alfa modulada (9 Hz)",
+        eegSpeed: 0.04,
+        voltage: "-55 mV",
+        latency: "12 ms",
+        velocity: "62 m/s",
+        fft: [15, 25, 60, 40, 15],
+        lobes: ["Hipotálamo", "Ínsula", "Corteza Motora", "Ganglios Basales"],
+        clinical: "Regulación homeostática del balance calórico coordinada entre sistema límbico y tronco encefálico.",
+        focalHub: "hypothalamus"
+      },
+      {
+        id: "bano",
+        name: "Ir al Baño (Micción / Defecación)",
+        cat: "vital",
+        icon: "🚽",
+        desc: "Tensión visceral transmitida vía médula e ínsula, activando el centro de Barrington para relajar esfínteres.",
+        route: ["brainstem", "barrington", "insula", "acc", "motor_cortex"],
+        transmitter: "Acetilcolina, Sustancia P, GABA",
+        intensity: 75,
+        eegFreq: "Theta transitoria (6 Hz)",
+        eegSpeed: 0.03,
+        voltage: "-60 mV",
+        latency: "14 ms",
+        velocity: "48 m/s",
+        fft: [20, 60, 30, 25, 10],
+        lobes: ["Tronco Encefálico", "Protuberancia", "Ínsula", "Cíngulo Anterior"],
+        clinical: "Control reflejo viscerosomático con modulación prefrontal consciente sobre esfínteres voluntarios.",
+        focalHub: "barrington"
+      },
+      {
+        id: "dormir",
+        name: "Dormir (Fase No-REM a Ondas Lentas)",
+        cat: "vital",
+        icon: "😴",
+        desc: "Núcleo VLPO inhibe centros de vigilia del tallo y tálamo, sincronizando ondas delta profundas.",
+        route: ["hypothalamus", "thalamus", "pcc", "brainstem"],
+        transmitter: "GABA, Melatonina, Adenosina",
+        intensity: 35,
+        eegFreq: "Ondas Delta lentas (2 Hz)",
+        eegSpeed: 0.012,
+        voltage: "-78 mV",
+        latency: "28 ms",
+        velocity: "32 m/s",
+        fft: [85, 30, 15, 8, 4],
+        lobes: ["Hipotálamo (VLPO)", "Tálamo", "Corteza Cingulada Posterior"],
+        clinical: "Consolidación de la memoria y lavado glinfático de desechos neurotóxicos y beta-amiloide.",
+        focalHub: "hypothalamus"
+      },
+      {
+        id: "levantarse",
+        name: "Levantarse / Despertar (Vigilia)",
+        cat: "vital",
+        icon: "☀️",
+        desc: "Disparo del sistema reticular activador ascendente (SARA) e hipocretinas inundan la corteza con potencial desincronizado.",
+        route: ["brainstem", "hypothalamus", "thalamus", "pfc_left", "motor_cortex"],
+        transmitter: "Noradrenalina, Orexina, Acetilcolina",
+        intensity: 90,
+        eegFreq: "Beta rápido (18 Hz)",
+        eegSpeed: 0.07,
+        voltage: "-50 mV",
+        latency: "9 ms",
+        velocity: "70 m/s",
+        fft: [10, 20, 30, 75, 25],
+        lobes: ["SARA Troncal", "Tálamo", "Lóbulo Frontal"],
+        clinical: "Activación del tono simpático, apertura talámica y preparación neuromuscular postural.",
+        focalHub: "brainstem"
+      },
+      {
+        id: "respirar",
+        name: "Respirar Profundo (Control Vagal)",
+        cat: "vital",
+        icon: "🫁",
+        desc: "Inspiración lenta en el complejo pre-Bötzinger estimula el nervio vago y desactiva la amígdala hipertónica.",
+        route: ["brainstem", "thalamus", "acc", "pfc_left"],
+        transmitter: "Acetilcolina, GABA",
+        intensity: 50,
+        eegFreq: "Alfa sincronizado (8.5 Hz)",
+        eegSpeed: 0.025,
+        voltage: "-68 mV",
+        latency: "19 ms",
+        velocity: "58 m/s",
+        fft: [20, 25, 75, 15, 5],
+        lobes: ["Bulbo Raquídeo", "Corteza Prefrontal", "Cíngulo Anterior"],
+        clinical: "Activación del sistema parasimpático y aumento de variabilidad de frecuencia cardíaca (VFC).",
+        focalHub: "brainstem"
+      },
+
+      // ⚡ TDAH
+      {
+        id: "adhd_paralisis",
+        name: "TDAH: Parálisis Ejecutiva / Procrastinación",
+        cat: "adhd",
+        icon: "⏳",
+        desc: "Déficit de dopamina tónica en el estriado y DLPFC; desacoplamiento entre intención y puesta en marcha motora.",
+        route: ["pfc_left", "ofc", "striatum", "thalamus"],
+        transmitter: "Dopamina baja (D2/D1 disfuncional), Noradrenalina",
+        intensity: 40,
+        eegFreq: "Elevado Ratio Theta/Beta (4-7 Hz)",
+        eegSpeed: 0.02,
+        voltage: "-72 mV",
+        latency: "25 ms",
+        velocity: "38 m/s",
+        fft: [25, 75, 30, 20, 10],
+        lobes: ["DLPFC", "Estriado Ventral", "Tálamo"],
+        clinical: "Falla de señalización de coste-beneficio en la corteza orbitofrontal impidiendo el inicio de tareas.",
+        focalHub: "pfc_left"
+      },
+      {
+        id: "adhd_hiperfoco",
+        name: "TDAH: Hiperfoco Intenso",
+        cat: "adhd",
+        icon: "🎯",
+        desc: "Inundación dopaminérgica fásica confinada en el circuito mesolímbico motivacional que bloquea estímulos externos.",
+        route: ["vta", "striatum", "pfc_right", "visual_cortex"],
+        transmitter: "Dopamina fásica elevada, Glutamato",
+        intensity: 95,
+        eegFreq: "Gamma focalizado (38 Hz)",
+        eegSpeed: 0.08,
+        voltage: "-48 mV",
+        latency: "7 ms",
+        velocity: "80 m/s",
+        fft: [10, 15, 25, 45, 95],
+        lobes: ["Área Tegmentaria Ventral", "Núcleo Accumbens", "Corteza Visual"],
+        clinical: "Monopolización atencional sobre tareas de alto interés intrínseco con inhibición periférica.",
+        focalHub: "vta"
+      },
+
+      // 🧲 RESONANCIA MAGNÉTICA (RMN)
+      {
+        id: "mri_ms",
+        name: "RMN: Esclerosis Múltiple (Desmielinización)",
+        cat: "mri",
+        icon: "🧲",
+        desc: "Conducción saltatoria axonal enlentecida y bloqueada por placas periventriculares de desmielinización autoinmune.",
+        route: ["pfc_left", "sensory_cortex", "cerebellum", "brainstem"],
+        transmitter: "Glutamato excitotóxico, Citocinas proinflamatorias",
+        intensity: 45,
+        eegFreq: "Enlentecimiento focal Theta/Delta",
+        eegSpeed: 0.015,
+        voltage: "-65 mV",
+        latency: "35 ms",
+        velocity: "22 m/s",
+        fft: [65, 55, 20, 15, 8],
+        lobes: ["Sustancia Blanca Periventricular", "Cuerpo Calloso", "Tronco"],
+        clinical: "Criterios de McDonald: Diseminación en tiempo y espacio visible por realce con Gadolinio en T1.",
+        focalHub: "cerebellum"
+      },
+      {
+        id: "mri_alzheimer",
+        name: "RMN: Atrofia Hipocampal (Alzheimer)",
+        cat: "mri",
+        icon: "📉",
+        desc: "Pérdida neuronal y reducción del grosor cortical en corteza entorrinal e hipocampo; interrupción de Papez.",
+        route: ["hippocampus", "pcc", "pfc_left", "thalamus"],
+        transmitter: "Déficit severo de Acetilcolina (ChAT baja)",
+        intensity: 30,
+        eegFreq: "Desaceleración difusa de ritmo de fondo",
+        eegSpeed: 0.018,
+        voltage: "-74 mV",
+        latency: "29 ms",
+        velocity: "34 m/s",
+        fft: [50, 60, 25, 12, 6],
+        lobes: ["Lóbulo Temporal Medial", "Hipocampo", "Corteza Cingulada Posterior"],
+        clinical: "Escala de Scheltens: Dilatación de hendidura coroidea y asta temporal en cortes T1 volumétricos.",
+        focalHub: "hippocampus"
+      },
+
+      // 🔬 BIOPSIA CEREBRAL
+      {
+        id: "biopsy_gbm",
+        name: "Biopsia: Glioblastoma Multiforme (Grado IV)",
+        cat: "biopsy",
+        icon: "🔬",
+        desc: "Neoplasia glial invasiva de alta malignidad con proliferación microvascular y necrosis en empalizada confirmada histológicamente.",
+        route: ["pfc_left", "acc", "motor_cortex", "sensory_cortex"],
+        transmitter: "Glutamato autocrino, VEGF tumoral",
+        intensity: 85,
+        eegFreq: "Actividad delta polimórfica perilesional (1.5 Hz)",
+        eegSpeed: 0.03,
+        voltage: "-54 mV",
+        latency: "21 ms",
+        velocity: "42 m/s",
+        fft: [80, 35, 15, 20, 10],
+        lobes: ["Sustancia Blanca Profunda", "Lóbulo Frontal"],
+        clinical: "Biopsia estereotáctica guiada: Determinación del estado mutacional IDH1/2 y metilación de MGMT.",
+        focalHub: "pfc_left"
+      },
+
+      // ❤️ ANSIEDAD & AFECTO
+      {
+        id: "panico",
+        name: "Ataque de Pánico (Secuestro Amigdalino)",
+        cat: "psych",
+        icon: "⚠️",
+        desc: "Hiperactividad descontrolada del núcleo central amigdalino que desactiva el control prefrontal y satura el locus coeruleus.",
+        route: ["amygdala", "hypothalamus", "brainstem", "insula"],
+        transmitter: "Adrenalina masiva, Cortisol, Glutamato",
+        intensity: 98,
+        eegFreq: "Beta-Gamma desincronizado (>30 Hz)",
+        eegSpeed: 0.09,
+        voltage: "-46 mV",
+        latency: "5 ms",
+        velocity: "88 m/s",
+        fft: [10, 15, 10, 75, 95],
+        lobes: ["Amígdala", "Ínsula", "Hipotálamo", "Tronco Encefálico"],
+        clinical: "Activación simpática paroxística con hiperventilación, taquicardia y sensación de peligro inminente.",
+        focalHub: "amygdala"
+      },
+
+      // 🔁 TOC & TEA
+      {
+        id: "toc_loop",
+        name: "TOC: Bucle Obsesivo-Compulsivo (CSTO)",
+        cat: "divergent",
+        icon: "🔁",
+        desc: "Circuito reverberante córtico-estriado-tálamo-cortical atrapado en una señal falsa de error sin apagado inhibitorio.",
+        route: ["ofc", "acc", "striatum", "thalamus", "ofc"],
+        transmitter: "Serotonina desensibilizada, Glutamato hiperactivo",
+        intensity: 92,
+        eegFreq: "Beta frontal rítmico persistente (24 Hz)",
+        eegSpeed: 0.07,
+        voltage: "-49 mV",
+        latency: "7 ms",
+        velocity: "78 m/s",
+        fft: [10, 20, 25, 80, 45],
+        lobes: ["Corteza Orbitofrontal", "Cíngulo Anterior", "Caudado"],
+        clinical: "Hiperactivación continua de la señal de corrección de error (ERN) que solo atenúa el ritual motor.",
+        focalHub: "ofc"
+      },
+
+      // 🏃 MOTORAS Y COGNITIVAS
+      {
+        id: "caminar",
+        name: "Caminar (Marcha Rítmica)",
+        cat: "motor",
+        icon: "🚶",
+        desc: "Generadores centrales de patrones de la médula coordinados con el cerebelo y retroalimentación propioceptiva.",
+        route: ["premotor", "motor_cortex", "cerebellum", "brainstem"],
+        transmitter: "Acetilcolina, Dopamina, Glutamato",
+        intensity: 75,
+        eegFreq: "Ritmo Mu/Beta atenuado",
+        eegSpeed: 0.05,
+        voltage: "-59 mV",
+        latency: "14 ms",
+        velocity: "60 m/s",
+        fft: [15, 25, 30, 60, 20],
+        lobes: ["Corteza Motora Primaria", "Cerebelo", "Tronco Encefálico"],
+        clinical: "Automatismo motor rítmico con ajuste continuo del centro de gravedad y propiocepción inconsciente.",
+        focalHub: "motor_cortex"
+      },
+      {
+        id: "meditar",
+        name: "Meditar (Silencio y Calma Mental)",
+        cat: "cognitive",
+        icon: "🧘",
+        desc: "Apagado voluntario de la Red Neuronal por Defecto (DMN) y sostenimiento atencional guiado por la ínsula y el cíngulo.",
+        route: ["acc", "insula", "pfc_left", "thalamus"],
+        transmitter: "GABA elevado, Serotonina, Anandamida",
+        intensity: 55,
+        eegFreq: "Alfa sincronizado y ondas Theta frontales",
+        eegSpeed: 0.025,
+        voltage: "-69 mV",
+        latency: "20 ms",
+        velocity: "53 m/s",
+        fft: [15, 60, 75, 12, 8],
+        lobes: ["Cíngulo Anterior", "Ínsula", "Corteza Prefrontal"],
+        clinical: "Desactivación del diálogo interno egocéntrico e inducción de plasticidad sináptica en circuitos fronto-límbicos.",
+        focalHub: "acc"
+      }
+    ];
+
+    let scene, camera, renderer, controls;
+    let neuronParticles, starfieldParticles, synapseMeshGroup, axonCurvesGroup, impulseGroup, tractMeshGroup;
+    let currentActiveActivity = MASTER_DATA[0];
+    let currentCategory = "all";
+    let searchQuery = "";
+    let activeSplines = [];
+    let impulses = [];
+    let audioCtx = null;
+    let audioEnabled = true;
+    let tractographyVisible = true;
+    let raycaster, mouse;
+    let currentInspectedHub = BRAIN_HUBS.pfc_left;
+    let microscopeOpen = false;
+
+    // Smooth camera transition state for cellular deep zoom
+    let cameraTargetPos = null;
+    let controlsTargetPos = null;
+    let isTransitioningCamera = false;
+
+    // Live API & Stream Engine Variables
+    let liveStreamingActive = true;
+    let packetCount = 0;
+    let streamInterval = null;
+    let lastStreamData = null;
+
+    // Clinical Session Timer
+    let sessionSeconds = 0;
+    setInterval(() => {
+      sessionSeconds++;
+      const m = String(Math.floor(sessionSeconds / 60)).padStart(2, '0');
+      const s = String(sessionSeconds % 60).padStart(2, '0');
+      const el = document.getElementById('session-time');
+      if (el) el.textContent = `${m}:${s}`;
+    }, 1000);
+
+    // Audio synthesizer
+    function playSynapticSound(freq = 440, type = 'sine') {
+      if (!audioEnabled) return;
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.35, audioCtx.currentTime + 0.08);
+
+        gain.gain.setValueAtTime(0.035, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.15);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.16);
+      } catch (e) {}
+    }
+
+    function init3D() {
+      const canvas = document.getElementById('canvas-3d');
+
+      scene = new THREE.Scene();
+      scene.fog = new THREE.FogExp2(0x020617, 0.045);
+
+      camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+      camera.position.set(0, 2.2, 7.8);
+
+      renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.maxDistance = 15;
+      controls.minDistance = 2.4;
+      controls.autoRotate = false;
+      controls.autoRotateSpeed = 0.5;
+
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+
+      const ambLight = new THREE.AmbientLight(0x38bdf8, 0.45);
+      scene.add(ambLight);
+
+      const dirLight = new THREE.DirectionalLight(0x818cf8, 0.8);
+      dirLight.position.set(6, 12, 8);
+      scene.add(dirLight);
+
+      const pointLight = new THREE.PointLight(0x06b6d4, 1.2, 25);
+      pointLight.position.set(-4, -4, 4);
+      scene.add(pointLight);
+
+      synapseMeshGroup = new THREE.Group();
+      axonCurvesGroup = new THREE.Group();
+      impulseGroup = new THREE.Group();
+      tractMeshGroup = new THREE.Group();
+
+      scene.add(synapseMeshGroup);
+      scene.add(axonCurvesGroup);
+      scene.add(impulseGroup);
+      scene.add(tractMeshGroup);
+
+      buildSpaceGrid();
+      buildCorticalHemispheres();
+      buildSynapticHubs();
+      buildHumanTractography();
+
+      // Activate starting clinical condition
+      activateActivity(MASTER_DATA[0]);
+
+      initMicroscopeCanvases();
+      initLiveStreamingEngine();
+
+      window.addEventListener('resize', onWindowResize);
+      canvas.addEventListener('click', onCanvasClick);
+      canvas.addEventListener('mousemove', onCanvasMouseMove);
+    }
+
+    function buildSpaceGrid() {
+      const count = 1800;
+      const positions = new Float32Array(count * 3);
+      for (let i = 0; i < count * 3; i += 3) {
+        positions[i] = (Math.random() - 0.5) * 60;
+        positions[i + 1] = (Math.random() - 0.5) * 60;
+        positions[i + 2] = (Math.random() - 0.5) * 60;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const mat = new THREE.PointsMaterial({
+        size: 0.05,
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.35,
+        blending: THREE.AdditiveBlending
+      });
+      starfieldParticles = new THREE.Points(geo, mat);
+      scene.add(starfieldParticles);
+    }
+
+    function buildCorticalHemispheres() {
+      const count = 6200;
+      const positions = new Float32Array(count * 3);
+      const colors = new Float32Array(count * 3);
+
+      const colLeft = new THREE.Color(0x06b6d4);
+      const colRight = new THREE.Color(0x818cf8);
+      const colStem = new THREE.Color(0x64748b);
+      const tempCol = new THREE.Color();
+
+      for (let i = 0; i < count; i++) {
+        const isLeft = Math.random() > 0.5;
+        const side = isLeft ? 1 : -1;
+        const u = Math.random() * Math.PI * 2;
+        const v = Math.random() * Math.PI;
+
+        let rx = (1.52 + 0.35 * Math.cos(u * 2)) * Math.sin(v) * 1.5;
+        let ry = (1.35 + 0.22 * Math.sin(v * 2)) * Math.cos(v) * 1.4;
+        let rz = (1.92 + 0.34 * Math.cos(v)) * Math.sin(u) * 1.6;
+
+        rx = (rx * 0.72 + 0.42) * side + (Math.random() - 0.5) * 0.18;
+        ry += (Math.random() - 0.5) * 0.22;
+        rz += (Math.random() - 0.5) * 0.22;
+
+        const sulcalFold = Math.sin(rx * 6) * Math.cos(rz * 5) * 0.12;
+        ry += sulcalFold;
+
+        if (Math.random() < 0.18) {
+          rx = (Math.random() - 0.5) * 0.95;
+          ry = -1.25 - Math.random() * 1.35;
+          rz = -0.55 - Math.random() * 1.3;
+        }
+
+        positions[i * 3]     = rx;
+        positions[i * 3 + 1] = ry;
+        positions[i * 3 + 2] = rz;
+
+        if (ry < -1.1) {
+          tempCol.copy(colStem);
+        } else {
+          tempCol.copy(isLeft ? colLeft : colRight);
+        }
+
+        colors[i * 3]     = tempCol.r;
+        colors[i * 3 + 1] = tempCol.g;
+        colors[i * 3 + 2] = tempCol.b;
+      }
+
+      const pGeo = new THREE.BufferGeometry();
+      pGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      pGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      const pMat = new THREE.PointsMaterial({
+        size: 0.054,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending
+      });
+
+      neuronParticles = new THREE.Points(pGeo, pMat);
+      scene.add(neuronParticles);
+    }
+
+    const hubMeshMap = {};
+    function buildSynapticHubs() {
+      const sphereGeo = new THREE.SphereGeometry(0.13, 16, 16);
+
+      Object.entries(BRAIN_HUBS).forEach(([key, hub]) => {
+        const mat = new THREE.MeshStandardMaterial({
+          color: hub.color,
+          emissive: hub.color,
+          emissiveIntensity: 0.45,
+          roughness: 0.25,
+          metalness: 0.65
+        });
+        const mesh = new THREE.Mesh(sphereGeo, mat);
+        mesh.position.set(...hub.pos);
+
+        const haloGeo = new THREE.SphereGeometry(0.24, 12, 12);
+        const haloMat = new THREE.MeshBasicMaterial({
+          color: hub.color,
+          transparent: true,
+          opacity: 0.25,
+          wireframe: true
+        });
+        const halo = new THREE.Mesh(haloGeo, haloMat);
+        mesh.add(halo);
+
+        mesh.userData = { id: key, info: hub, originalColor: hub.color };
+        synapseMeshGroup.add(mesh);
+        hubMeshMap[key] = mesh;
+      });
+    }
+
+    function buildHumanTractography() {
+      HUMAN_TRACTS.forEach(tract => {
+        const fromHub = BRAIN_HUBS[tract.from];
+        const toHub = BRAIN_HUBS[tract.to];
+        if (fromHub && toHub) {
+          const p1 = new THREE.Vector3(...fromHub.pos);
+          const p2 = new THREE.Vector3(...toHub.pos);
+          const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+          mid.y += 0.4;
+
+          const curve = new THREE.CatmullRomCurve3([p1, mid, p2]);
+          const tubeGeo = new THREE.TubeGeometry(curve, 32, tract.width, 8, false);
+          const tubeMat = new THREE.MeshBasicMaterial({
+            color: tract.color,
+            transparent: true,
+            opacity: 0.28,
+            blending: THREE.AdditiveBlending
+          });
+          const tubeMesh = new THREE.Mesh(tubeGeo, tubeMat);
+          tubeMesh.userData = { tractInfo: tract };
+          tractMeshGroup.add(tubeMesh);
+        }
+      });
+    }
+
+    function reconstruct3DFromClinicalData(data) {
+      if (!data) return;
+
+      while (axonCurvesGroup.children.length > 0) {
+        const obj = axonCurvesGroup.children[0];
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+        axonCurvesGroup.remove(obj);
+      }
+
+      while (impulseGroup.children.length > 0) {
+        const obj = impulseGroup.children[0];
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+        impulseGroup.remove(obj);
+      }
+
+      activeSplines = [];
+      impulses = [];
+
+      Object.values(hubMeshMap).forEach(mesh => {
+        mesh.scale.set(1, 1, 1);
+        mesh.material.emissiveIntensity = 0.35;
+      });
+
+      const route = data.route || ["thalamus", "pfc_left", "acc"];
+      
+      let impulseColor = 0x10b981;
+      let axonColor = 0x38bdf8;
+      if (data.intensity > 90) {
+        impulseColor = 0xf43f5e;
+        axonColor = 0xf59e0b;
+      } else if (data.cat === 'adhd') {
+        impulseColor = 0xf59e0b;
+      }
+
+      for (let i = 0; i < route.length - 1; i++) {
+        const startKey = route[i];
+        const endKey = route[i + 1];
+        const startHub = BRAIN_HUBS[startKey];
+        const endHub = BRAIN_HUBS[endKey];
+
+        if (startHub && endHub) {
+          const p1 = new THREE.Vector3(...startHub.pos);
+          const p2 = new THREE.Vector3(...endHub.pos);
+
+          const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+          mid.y += 0.38 + Math.random() * 0.15;
+          mid.x += (Math.random() - 0.5) * 0.25;
+
+          const curve = new THREE.CatmullRomCurve3([p1, mid, p2]);
+          activeSplines.push(curve);
+
+          const tubeRadius = (data.intensity / 100) * 0.04 + 0.015;
+          const tubeGeo = new THREE.TubeGeometry(curve, 28, tubeRadius, 8, false);
+          const tubeMat = new THREE.MeshBasicMaterial({
+            color: axonColor,
+            transparent: true,
+            opacity: 0.85,
+            blending: THREE.AdditiveBlending
+          });
+          const tubeMesh = new THREE.Mesh(tubeGeo, tubeMat);
+          axonCurvesGroup.add(tubeMesh);
+
+          if (hubMeshMap[startKey]) {
+            hubMeshMap[startKey].scale.set(1.45, 1.45, 1.45);
+            hubMeshMap[startKey].material.emissiveIntensity = 1.4;
+          }
+          if (hubMeshMap[endKey]) {
+            hubMeshMap[endKey].scale.set(1.45, 1.45, 1.45);
+            hubMeshMap[endKey].material.emissiveIntensity = 1.4;
+          }
+
+          const impulseGeo = new THREE.SphereGeometry(0.085, 12, 12);
+          const impulseMat = new THREE.MeshBasicMaterial({
+            color: impulseColor,
+            blending: THREE.AdditiveBlending
+          });
+          const impulseMesh = new THREE.Mesh(impulseGeo, impulseMat);
+          impulseGroup.add(impulseMesh);
+
+          const calculatedSpeed = 0.006 * (data.intensity / 45);
+
+          impulses.push({
+            mesh: impulseMesh,
+            curve: curve,
+            progress: (i / (route.length - 1)),
+            speed: calculatedSpeed
+          });
+        }
+      }
+
+      if (data.focalHub && hubMeshMap[data.focalHub]) {
+        hubMeshMap[data.focalHub].scale.set(2.2, 2.2, 2.2);
+        hubMeshMap[data.focalHub].material.emissiveIntensity = 2.5;
+      }
+
+      playSynapticSound(280 + (data.intensity * 4.2), 'triangle');
+    }
+
+    function activateActivity(activity) {
+      currentActiveActivity = activity;
+      updateHUD(activity);
+      reconstruct3DFromClinicalData(activity);
+      updateJsonEditor(activity);
+    }
+
+    function stopActivityAndReturnCalm(closeModals = true) {
+      const calmState = MASTER_DATA.find(item => item.id === 'calma_basal') || MASTER_DATA[0];
+      activateActivity(calmState);
+      renderActivitiesList();
+      playSynapticSound(261.63, 'sine');
+      setTimeout(() => playSynapticSound(329.63, 'sine'), 100);
+
+      if (closeModals) {
+        const modals = ['modal-ingestion', 'modal-diagnosis', 'panel-microscope', 'modal-demo'];
+        modals.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.classList.add('hidden');
+        });
+        microscopeOpen = false;
+      }
+
+      showToast("🕊️ Actividad Detenida • Retorno Inmediato a la Calma Basal");
+    }
+
+    function downloadCurrentReport() {
+      const activeData = currentActiveActivity || MASTER_DATA[0];
+      const reportPayload = {
+        institucion: "Estación Médica del Conectoma Humano 3D",
+        tipoEstudio: "Reporte de Telemetría Neurofuncional y Análisis Bioeléctrico",
+        fechaEmisionISO: new Date().toISOString(),
+        expedientePaciente: document.getElementById('patient-id-display').textContent,
+        duracionSesion: document.getElementById('session-time').textContent,
+        estudioEvaluado: activeData.name,
+        categoria: activeData.cat,
+        frecuenciaDominanteEEG: activeData.eegFreq,
+        potencialMembrana: activeData.voltage,
+        latenciaSinaptica: activeData.latency,
+        velocidadConduccionAxonal: activeData.velocity,
+        espectroPotenciaFFT: {
+          delta_0_4Hz: `${activeData.fft ? activeData.fft[0] : 15}%`,
+          theta_4_8Hz: `${activeData.fft ? activeData.fft[1] : 20}%`,
+          alfa_8_12Hz: `${activeData.fft ? activeData.fft[2] : 80}%`,
+          beta_12_30Hz: `${activeData.fft ? activeData.fft[3] : 15}%`,
+          gamma_30_100Hz: `${activeData.fft ? activeData.fft[4] : 8}%`
+        },
+        biomarcadoresTransmisores: activeData.transmitter,
+        trayectoriaAxonalNodos: activeData.route,
+        sectoresAnatomicos: activeData.lobes,
+        impresionClinica: activeData.clinical,
+        diagnosticoEspecializado: activeData.diagnosisInfo || null
+      };
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(reportPayload, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `Reporte_Conectoma_${activeData.id}_${Date.now()}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+
+      showToast("📥 Reporte Clínico Descargado con Éxito (.JSON)");
+    }
+
+    // Patient Study Cleaner Function
+    function deletePatientStudy(studyId, event) {
+      if (event) event.stopPropagation();
+      const index = MASTER_DATA.findIndex(item => item.id === studyId);
+      if (index !== -1) {
+        const deletedName = MASTER_DATA[index].name;
+        MASTER_DATA.splice(index, 1);
+        if (currentActiveActivity && currentActiveActivity.id === studyId) {
+          activateActivity(MASTER_DATA[0]);
+        }
+        renderActivitiesList();
+        showToast(`🗑️ Expediente eliminado: ${deletedName}`);
+      }
+    }
+
+    function initLiveStreamingEngine() {
+      const packetEl = document.getElementById('api-packet-counter');
+      if (streamInterval) clearInterval(streamInterval);
+
+      streamInterval = setInterval(() => {
+        if (!liveStreamingActive) return;
+
+        packetCount += 4;
+        if (packetEl) {
+          packetEl.textContent = `Muestreo: 256 Hz • Paquetes: ${packetCount.toLocaleString()}`;
+        }
+
+        if (currentActiveActivity) {
+          const jitter = (Math.random() - 0.5) * 1.8;
+          const currentVoltNum = parseFloat(currentActiveActivity.voltage) || -70;
+          const displayVolt = (currentVoltNum + jitter).toFixed(1);
+          const vEl = document.getElementById('metric-voltage');
+          if (vEl) vEl.textContent = `${displayVolt} mV`;
+        }
+      }, 250);
+    }
+
+    function updateJsonEditor(data) {
+      const editor = document.getElementById('json-editor-input');
+      if (!editor) return;
+      const exportObject = {
+        patientId: document.getElementById('patient-id-display').textContent,
+        studyName: data.name,
+        timestampISO: new Date().toISOString(),
+        voltageMilliVolts: data.voltage,
+        latencyMs: data.latency,
+        conductionVelocityMs: data.velocity,
+        eegDominantFrequency: data.eegFreq,
+        fftPowerSpectrumPercentage: {
+          delta: data.fft ? data.fft[0] : 15,
+          theta: data.fft ? data.fft[1] : 20,
+          alfa: data.fft ? data.fft[2] : 80,
+          beta: data.fft ? data.fft[3] : 15,
+          gamma: data.fft ? data.fft[4] : 8
+        },
+        neurotransmitters: data.transmitter,
+        synapticPathwayRoute: data.route,
+        anatomicalLobes: data.lobes,
+        clinicalImpression: data.clinical
+      };
+      editor.value = JSON.stringify(exportObject, null, 2);
+    }
+
+    function runIntelligentClinicalDiagnosis(data = currentActiveActivity) {
+      const modal = document.getElementById('modal-diagnosis');
+      if (!modal) return;
+
+      const titleEl = document.getElementById('diag-title');
+      const confEl = document.getElementById('diag-confidence');
+      const locusEl = document.getElementById('diag-locus');
+      const neuroEl = document.getElementById('diag-neurochemical');
+      const spectralEl = document.getElementById('diag-spectral');
+      const expEl = document.getElementById('diag-explanation');
+      const recsEl = document.getElementById('diag-recommendations');
+
+      const diag = data.diagnosisInfo || {
+        title: `Evaluación Clínica: ${data.name}`,
+        confidence: "89.5%",
+        locus: data.lobes ? data.lobes.join(", ") : "Corteza Frontotemporal",
+        neurochemical: data.transmitter,
+        spectral: `${data.eegFreq} con carga sináptica al ${data.intensity}%`,
+        explanation: data.clinical,
+        recommendations: [
+          "Mapeo neurofuncional cuantitativo de seguimiento en estado basal.",
+          "Monitoreo de latencia axonal para evaluar la integridad mielínica.",
+          "Correlación con biomarcadores séricos y evaluación clínica individualizada."
+        ]
+      };
+
+      titleEl.textContent = diag.title;
+      confEl.textContent = `CONFIANZA: ${diag.confidence}`;
+      locusEl.textContent = diag.locus;
+      neuroEl.textContent = diag.neurochemical;
+      spectralEl.textContent = diag.spectral;
+      expEl.textContent = diag.explanation;
+
+      recsEl.innerHTML = '';
+      diag.recommendations.forEach(r => {
+        const li = document.createElement('li');
+        li.textContent = r;
+        recsEl.appendChild(li);
+      });
+
+      modal.classList.remove('hidden');
+      showToast("Diagnóstico Clínico Cuantitativo Calculado");
+    }
+
+    function inspectHub(hub) {
+      currentInspectedHub = hub;
+      const inspectorBox = document.getElementById('hud-node-inspector');
+      if (inspectorBox) inspectorBox.classList.remove('hidden');
+
+      document.getElementById('inspector-ba').textContent = hub.ba;
+      document.getElementById('inspector-name').textContent = hub.name;
+      document.getElementById('inspector-role').textContent = hub.role;
+      document.getElementById('inspector-afferents').textContent = hub.afferents;
+      document.getElementById('inspector-efferents').textContent = hub.efferents;
+      document.getElementById('inspector-lesion').textContent = hub.lesion;
+      
+      updateMicroscopicData(currentActiveActivity, hub);
+      showToast(`Inspección Celular: ${hub.name}`);
+    }
+
+    function zoomToNeuron(hub) {
+      if (!hub) return;
+      const targetVec = new THREE.Vector3(...hub.pos);
+      const offset = new THREE.Vector3(targetVec.x * 0.4, targetVec.y + 0.35, targetVec.z + 0.85);
+      cameraTargetPos = offset;
+      controlsTargetPos = targetVec;
+      isTransitioningCamera = true;
+      showToast(`Zoom Celular 3D: ${hub.name}`);
+    }
+
+    function onCanvasClick(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(synapseMeshGroup.children, true);
+
+      if (intersects.length > 0) {
+        let selectedMesh = intersects[0].object;
+        if (!selectedMesh.userData.info && selectedMesh.parent && selectedMesh.parent.userData.info) {
+          selectedMesh = selectedMesh.parent;
+        }
+        if (selectedMesh.userData.info) {
+          inspectHub(selectedMesh.userData.info);
+          playSynapticSound(520, 'sine');
+        }
+      }
+    }
+
+    function onCanvasMouseMove(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(synapseMeshGroup.children, true);
+      if (intersects.length > 0) {
+        document.body.style.cursor = 'pointer';
+      } else {
+        document.body.style.cursor = 'default';
+      }
+    }
+
+    function renderActivitiesList() {
+      const container = document.getElementById('activities-container');
+      container.innerHTML = '';
+
+      const query = searchQuery.toLowerCase().trim();
+      const filtered = MASTER_DATA.filter(item => {
+        const matchesCategory = (currentCategory === 'all') || (item.cat === currentCategory);
+        const matchesSearch = !query || 
+          item.name.toLowerCase().includes(query) ||
+          item.desc.toLowerCase().includes(query) ||
+          item.transmitter.toLowerCase().includes(query) ||
+          item.lobes.some(l => l.toLowerCase().includes(query));
+        return matchesCategory && matchesSearch;
+      });
+
+      document.getElementById('activities-count').textContent = `${filtered.length} Patrones`;
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-8 text-slate-500 text-xs font-mono">
+            No se detectaron patrones clínicos para "${searchQuery}"
+          </div>`;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const card = document.createElement('div');
+        const isActive = currentActiveActivity.id === item.id;
+        card.className = `hud-card p-3 rounded-xl cursor-pointer ${isActive ? 'active-card' : ''}`;
+        
+        let badgeColor = 'bg-slate-800 text-slate-300 border border-slate-700';
+        if (item.cat === 'custom') badgeColor = 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 font-bold';
+        if (item.cat === 'adhd') badgeColor = 'bg-amber-950/80 text-amber-300 border border-amber-500/40';
+        if (item.cat === 'mri') badgeColor = 'bg-sky-950/80 text-sky-300 border border-sky-500/40';
+        if (item.cat === 'biopsy') badgeColor = 'bg-rose-950/80 text-rose-300 border border-rose-500/40';
+        if (item.cat === 'psych') badgeColor = 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40';
+        if (item.cat === 'divergent') badgeColor = 'bg-purple-950/80 text-purple-300 border border-purple-500/40';
+
+        const isDeletable = item.cat === 'custom' || item.id.startsWith('custom_');
+
+        card.innerHTML = `
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="text-lg p-1.5 rounded-lg bg-black/70 border border-cyan-900/50">${item.icon}</span>
+              <div>
+                <h3 class="text-xs font-bold text-white font-mono leading-tight">${item.name}</h3>
+                <span class="text-[9px] font-mono px-1.5 py-0.5 rounded ${badgeColor} inline-block mt-0.5">${item.cat.toUpperCase()}</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] font-mono font-bold text-cyan-400">${item.intensity}%</span>
+              ${isDeletable ? `
+                <button title="Eliminar estudio/paciente" class="btn-delete-study p-1 rounded hover:bg-rose-600/80 text-slate-400 hover:text-white transition-all cursor-pointer">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              ` : ''}
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2 line-clamp-2 leading-relaxed font-sans">${item.desc}</p>
+        `;
+
+        if (isDeletable) {
+          const deleteBtn = card.querySelector('.btn-delete-study');
+          if (deleteBtn) {
+            deleteBtn.addEventListener('click', (e) => deletePatientStudy(item.id, e));
+          }
+        }
+
+        card.addEventListener('click', () => {
+          activateActivity(item);
+          renderActivitiesList();
+          if (window.innerWidth < 640) {
+            document.getElementById('panel-diagnosis').classList.remove('hidden');
+            document.getElementById('panel-diagnosis').classList.add('flex');
+          }
+        });
+
+        container.appendChild(card);
+      });
+    }
+
+    function updateHUD(activity) {
+      document.getElementById('hud-name').innerHTML = `<span>${activity.icon}</span> <span>${activity.name}</span>`;
+      document.getElementById('hud-desc').textContent = activity.desc;
+      document.getElementById('hud-freq-label').textContent = activity.eegFreq;
+      document.getElementById('hud-neurotransmitter').textContent = activity.transmitter;
+      document.getElementById('hud-intensity-val').textContent = `${activity.intensity}%`;
+      document.getElementById('hud-intensity-bar').style.width = `${activity.intensity}%`;
+      document.getElementById('hud-clinical-text').textContent = activity.clinical;
+      document.getElementById('hud-hop-count').textContent = `${activity.route.length} Nodos Sinápticos`;
+
+      document.getElementById('metric-voltage').textContent = activity.voltage || "-70 mV";
+      document.getElementById('metric-latency').textContent = activity.latency || "14 ms";
+      document.getElementById('metric-velocity').textContent = activity.velocity || "55 m/s";
+
+      const fft = activity.fft || [20, 20, 20, 20, 20];
+      document.getElementById('fft-delta').style.height = `${fft[0]}%`;
+      document.getElementById('fft-theta').style.height = `${fft[1]}%`;
+      document.getElementById('fft-alfa').style.height = `${fft[2]}%`;
+      document.getElementById('fft-beta').style.height = `${fft[3]}%`;
+      document.getElementById('fft-gamma').style.height = `${fft[4]}%`;
+
+      const pathContainer = document.getElementById('hud-pathway');
+      pathContainer.innerHTML = '';
+      activity.route.forEach((hubKey, idx) => {
+        const hub = BRAIN_HUBS[hubKey];
+        const step = document.createElement('div');
+        step.className = "flex items-center justify-between text-slate-300 font-mono text-[11px] p-1 rounded bg-slate-900/60";
+        step.innerHTML = `
+          <div class="flex items-center gap-1.5 truncate">
+            <span class="w-4 h-4 rounded-full bg-slate-800 text-cyan-400 flex items-center justify-center font-mono text-[9px] font-bold border border-cyan-800/80">${idx + 1}</span>
+            <span class="truncate">${hub ? hub.name : hubKey}</span>
+          </div>
+          <span class="text-[9px] text-cyan-500/80">${hub ? hub.ba : ''}</span>
+        `;
+        pathContainer.appendChild(step);
+      });
+
+      const lobesContainer = document.getElementById('hud-lobes');
+      lobesContainer.innerHTML = '';
+      activity.lobes.forEach(lobe => {
+        const badge = document.createElement('span');
+        badge.className = "text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900/90 text-cyan-300 border border-cyan-800/50";
+        badge.textContent = lobe;
+        lobesContainer.appendChild(badge);
+      });
+
+      const firstHubKey = activity.focalHub || activity.route[0];
+      if (BRAIN_HUBS[firstHubKey]) {
+        inspectHub(BRAIN_HUBS[firstHubKey]);
+      }
+      updateMicroscopicData(activity, currentInspectedHub);
+    }
+
+    let synapseCanvas, synapseCtx;
+    let patchCanvas, patchCtx;
+    let vesicles = [];
+    let patchPhase = 0;
+
+    function initMicroscopeCanvases() {
+      synapseCanvas = document.getElementById('synapse-canvas');
+      patchCanvas = document.getElementById('patch-clamp-canvas');
+      if (synapseCanvas && patchCanvas) {
+        synapseCtx = synapseCanvas.getContext('2d');
+        patchCtx = patchCanvas.getContext('2d');
+        resizeMicroCanvases();
+
+        vesicles = [];
+        for (let i = 0; i < 35; i++) {
+          vesicles.push({
+            x: Math.random() * (synapseCanvas.width * 0.7) + (synapseCanvas.width * 0.15),
+            y: Math.random() * (synapseCanvas.height * 0.32) + 8,
+            vx: (Math.random() - 0.5) * 0.4,
+            vy: 0.2 + Math.random() * 0.6,
+            released: false,
+            color: '#38bdf8'
+          });
+        }
+      }
+    }
+
+    function resizeMicroCanvases() {
+      if (!synapseCanvas || !patchCanvas) return;
+      synapseCanvas.width = synapseCanvas.clientWidth * 2;
+      synapseCanvas.height = synapseCanvas.clientHeight * 2;
+      patchCanvas.width = patchCanvas.clientWidth * 2;
+      patchCanvas.height = patchCanvas.clientHeight * 2;
+    }
+
+    function updateMicroscopicData(activity, hub) {
+      if (!activity) return;
+      const targetHub = hub || BRAIN_HUBS[activity.route[0]] || BRAIN_HUBS.pfc_left;
+      
+      const hubNameEl = document.getElementById('micro-hub-target-name');
+      if (hubNameEl) hubNameEl.textContent = targetHub.name;
+
+      const transEl = document.getElementById('micro-transmitter-active');
+      if (transEl) transEl.textContent = activity.transmitter;
+
+      const expEl = document.getElementById('micro-explanation-text');
+
+      let na = "+140 mM", k = "+4.2 mM", ca = "1.8 mM", cl = "105 mM";
+      let naWidth = 75, kWidth = 45, caWidth = 70, clWidth = 35;
+      let conduction = "CONDUCCIÓN SALTATORIA • MIELINA INTACTA";
+
+      if (activity.cat === 'adhd' || activity.id === 'clinic_adhd_dys') {
+        na = "+110 mM"; naWidth = 45;
+        ca = "0.9 mM"; caWidth = 35;
+        cl = "120 mM"; clWidth = 65;
+        conduction = "TRANSMISIÓN DOPAMINÉRGICA RETARDADA";
+        if (expEl) expEl.textContent = `En ${targetHub.name}, la tasa de exocitosis dopaminérgica está disminuida. Los potenciales postsinápticos excitadores (EPSP) no alcanzan de manera estable el umbral de -55 mV.`;
+      } else if (activity.id === 'clinic_epilepsy_focus' || activity.id === 'mri_epilepsia') {
+        conduction = "DESCARGA PAROXÍSTICA HIPERSINCRÓNICA";
+        na = "+155 mM"; naWidth = 98;
+        ca = "3.2 mM"; caWidth = 98;
+        cl = "80 mM"; clWidth = 10;
+        if (expEl) expEl.textContent = `Pérdida de la inhibición recurrente GABAérgica en ${targetHub.name}. Se desencadenan trenes masivos de despolarización paroxística con sobrecarga continua de Calcio.`;
+      } else if (activity.id === 'calma_basal') {
+        conduction = "EQUILIBRIO PARASIMPÁTICO / ALFA";
+        naWidth = 20; kWidth = 55; caWidth = 15; clWidth = 90;
+        if (expEl) expEl.textContent = `Apertura sostenida de canales de Cloro (Cl-) acoplados a receptores GABA-A. El potencial de membrana celular se estabiliza en reposo profundo (-70 mV a -78 mV).`;
+      } else {
+        if (expEl) expEl.textContent = `La neurona en ${targetHub.name} genera trenes rítmicos de despolarización coordinada con la tarea "${activity.name}". Los canales dependientes de voltaje mantienen el acoplamiento normal.`;
+      }
+
+      const condBadge = document.getElementById('micro-conduction-mode');
+      if (condBadge) condBadge.textContent = conduction;
+
+      document.getElementById('ion-na').textContent = na;
+      document.getElementById('ion-na-bar').style.width = `${naWidth}%`;
+      document.getElementById('ion-k').textContent = k;
+      document.getElementById('ion-k-bar').style.width = `${kWidth}%`;
+      document.getElementById('ion-ca').textContent = ca;
+      document.getElementById('ion-ca-bar').style.width = `${caWidth}%`;
+      document.getElementById('ion-cl').textContent = cl;
+      document.getElementById('ion-cl-bar').style.width = `${clWidth}%`;
+    }
+
+    function drawSynapseMicroscope() {
+      if (!synapseCtx || !synapseCanvas) return;
+      const w = synapseCanvas.width;
+      const h = synapseCanvas.height;
+      synapseCtx.clearRect(0, 0, w, h);
+
+      // Presynaptic bouton
+      synapseCtx.fillStyle = 'rgba(6, 182, 212, 0.15)';
+      synapseCtx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
+      synapseCtx.lineWidth = 2.5;
+      synapseCtx.beginPath();
+      synapseCtx.ellipse(w / 2, -h * 0.15, w * 0.48, h * 0.55, 0, 0, Math.PI * 2);
+      synapseCtx.fill();
+      synapseCtx.stroke();
+
+      // Postsynaptic dendritic spine
+      synapseCtx.fillStyle = 'rgba(139, 92, 246, 0.15)';
+      synapseCtx.strokeStyle = 'rgba(168, 85, 247, 0.7)';
+      synapseCtx.beginPath();
+      synapseCtx.ellipse(w / 2, h * 1.15, w * 0.48, h * 0.55, 0, 0, Math.PI * 2);
+      synapseCtx.fill();
+      synapseCtx.stroke();
+
+      // Synaptic cleft
+      synapseCtx.fillStyle = 'rgba(14, 165, 233, 0.04)';
+      synapseCtx.fillRect(w * 0.15, h * 0.42, w * 0.7, h * 0.16);
+
+      // Postsynaptic receptors
+      for (let rx = w * 0.2; rx <= w * 0.8; rx += w * 0.08) {
+        synapseCtx.fillStyle = '#ec4899';
+        synapseCtx.fillRect(rx, h * 0.58, 8, 12);
+        synapseCtx.strokeStyle = '#f43f5e';
+        synapseCtx.strokeRect(rx, h * 0.58, 8, 12);
+      }
+
+      // Synaptic vesicle exocytosis
+      const speed = currentActiveActivity ? (currentActiveActivity.intensity / 50) : 1;
+      vesicles.forEach(v => {
+        v.y += v.vy * speed;
+        v.x += v.vx;
+
+        if (v.x < w * 0.2 || v.x > w * 0.8) v.vx *= -1;
+
+        if (v.y > h * 0.42) {
+          synapseCtx.fillStyle = '#f59e0b';
+          synapseCtx.beginPath();
+          synapseCtx.arc(v.x, v.y, 2.5, 0, Math.PI * 2);
+          synapseCtx.fill();
+        } else {
+          synapseCtx.fillStyle = 'rgba(56, 189, 248, 0.8)';
+          synapseCtx.beginPath();
+          synapseCtx.arc(v.x, v.y, 4.5, 0, Math.PI * 2);
+          synapseCtx.fill();
+          synapseCtx.strokeStyle = '#ffffff';
+          synapseCtx.lineWidth = 1;
+          synapseCtx.stroke();
+        }
+
+        if (v.y > h * 0.62) {
+          v.y = Math.random() * (h * 0.2) + 5;
+          v.x = Math.random() * (w * 0.6) + (w * 0.2);
+        }
+      });
+    }
+
+    function drawPatchClampOscilloscope() {
+      if (!patchCtx || !patchCanvas) return;
+      const w = patchCanvas.width;
+      const h = patchCanvas.height;
+      patchCtx.clearRect(0, 0, w, h);
+
+      patchCtx.strokeStyle = 'rgba(16, 185, 129, 0.15)';
+      patchCtx.lineWidth = 1;
+      patchCtx.beginPath();
+      for (let y = 0; y < h; y += 12) {
+        patchCtx.moveTo(0, y);
+        patchCtx.lineTo(w, y);
+      }
+      patchCtx.stroke();
+
+      patchCtx.strokeStyle = '#38bdf8';
+      patchCtx.lineWidth = 2.2;
+      patchCtx.beginPath();
+
+      const speed = currentActiveActivity ? (currentActiveActivity.intensity / 70) * 0.05 : 0.05;
+      patchPhase += speed;
+
+      let currentMilliVolts = -70;
+
+      for (let x = 0; x < w; x++) {
+        const cycle = ((x / w) * 6 - patchPhase) % (Math.PI * 2);
+        const normCycle = (cycle + Math.PI * 2) % (Math.PI * 2);
+
+        let vNormalized = 0;
+
+        if (normCycle < 1.0) {
+          vNormalized = Math.sin(normCycle * 2) * 0.05;
+        } else if (normCycle < 1.4) {
+          const prog = (normCycle - 1.0) / 0.4;
+          vNormalized = prog * 0.25;
+        } else if (normCycle < 1.7) {
+          const prog = (normCycle - 1.4) / 0.3;
+          vNormalized = 0.25 + prog * 0.75;
+        } else if (normCycle < 2.2) {
+          const prog = (normCycle - 1.7) / 0.5;
+          vNormalized = 1.0 - prog * 1.25;
+        } else if (normCycle < 3.0) {
+          const prog = (normCycle - 2.2) / 0.8;
+          vNormalized = -0.25 + prog * 0.25;
+        }
+
+        const y = h * 0.75 - (vNormalized * (h * 0.55));
+        if (x === 0) patchCtx.moveTo(x, y);
+        else patchCtx.lineTo(x, y);
+
+        if (x === Math.floor(w * 0.8)) {
+          currentMilliVolts = -70 + (vNormalized * 105);
+        }
+      }
+      patchCtx.stroke();
+
+      const voltEl = document.getElementById('patch-voltage');
+      if (voltEl) {
+        voltEl.textContent = `${currentMilliVolts > 0 ? '+' : ''}${currentMilliVolts.toFixed(1)} mV`;
+        voltEl.className = currentMilliVolts > 0 ? "text-rose-400 font-bold" : "text-cyan-300 font-bold";
+      }
+    }
+
+    const eegCanvas = document.getElementById('eeg-canvas');
+    const eegCtx = eegCanvas.getContext('2d');
+    let eegPhase = 0;
+
+    function resizeEEG() {
+      eegCanvas.width = eegCanvas.clientWidth * 2;
+      eegCanvas.height = eegCanvas.clientHeight * 2;
+    }
+    resizeEEG();
+
+    function drawEEG() {
+      const w = eegCanvas.width;
+      const h = eegCanvas.height;
+      eegCtx.clearRect(0, 0, w, h);
+
+      eegCtx.strokeStyle = 'rgba(14, 165, 233, 0.12)';
+      eegCtx.lineWidth = 1;
+      eegCtx.beginPath();
+      for (let x = 0; x < w; x += 24) {
+        eegCtx.moveTo(x, 0);
+        eegCtx.lineTo(x, h);
+      }
+      for (let y = 0; y < h; y += 14) {
+        eegCtx.moveTo(0, y);
+        eegCtx.lineTo(w, y);
+      }
+      eegCtx.stroke();
+
+      eegCtx.strokeStyle = '#10b981';
+      eegCtx.lineWidth = 2.5;
+      eegCtx.beginPath();
+
+      const speed = currentActiveActivity ? currentActiveActivity.eegSpeed : 0.04;
+      eegPhase += speed;
+
+      for (let x = 0; x < w; x++) {
+        const t = (x / w) * 12 + eegPhase;
+        const baseWave = Math.sin(t * 3.5);
+        const harmonic = Math.sin(t * 8.2) * 0.45;
+        const noise = (Math.random() - 0.5) * 0.12;
+        const amplitude = (h * 0.32) * (currentActiveActivity.intensity / 100);
+
+        const y = (h / 2) + (baseWave + harmonic + noise) * amplitude;
+        if (x === 0) eegCtx.moveTo(x, y);
+        else eegCtx.lineTo(x, y);
+      }
+      eegCtx.stroke();
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-msg').textContent = message;
+      toast.classList.remove('opacity-0');
+      toast.classList.add('opacity-100');
+      setTimeout(() => {
+        toast.classList.remove('opacity-100');
+        toast.classList.add('opacity-0');
+      }, 2600);
+    }
+
+    function setupEventListeners() {
+      const panelActivities = document.getElementById('panel-activities');
+      const panelDiagnosis = document.getElementById('panel-diagnosis');
+      const reopenActBtn = document.getElementById('reopen-activities-btn');
+      const reopenDiagBtn = document.getElementById('reopen-diagnosis-btn');
+      const btnCloseAct = document.getElementById('btn-close-activities');
+      const btnCloseDiag = document.getElementById('btn-close-diagnosis');
+      const btnImmersion = document.getElementById('btn-toggle-immersion');
+      const immersionText = document.getElementById('immersion-btn-text');
+      const btnToggleTracts = document.getElementById('btn-toggle-tracts');
+      const btnToggleMicro = document.getElementById('btn-toggle-microscope');
+      const panelMicroscope = document.getElementById('panel-microscope');
+      const btnCloseMicro = document.getElementById('btn-close-microscope');
+      const btnFocusCurrentHub = document.getElementById('btn-focus-current-hub');
+      const btnCloseInspector = document.getElementById('btn-close-inspector');
+      const inspectorBox = document.getElementById('hud-node-inspector');
+      
+      const modalIngestion = document.getElementById('modal-ingestion');
+      const btnOpenIngestion = document.getElementById('btn-open-ingestion');
+      const btnCloseIngestion = document.getElementById('btn-close-ingestion');
+      const btnCloseIngestionBottom = document.getElementById('btn-close-ingestion-bottom');
+      const dropZone = document.getElementById('drop-zone');
+      const fileInput = document.getElementById('file-input');
+      const btnBrowseFile = document.getElementById('btn-browse-file');
+      const btnApplyJsonText = document.getElementById('btn-apply-json-text');
+
+      const modalDiagnosis = document.getElementById('modal-diagnosis');
+      const btnRunDiagnosis = document.getElementById('btn-run-diagnosis');
+      const btnCloseDiagModal = document.getElementById('btn-close-diagnosis-modal');
+      const btnCloseDiagModalBottom = document.getElementById('btn-close-diagnosis-modal-bottom');
+      const btnRecreateIn3D = document.getElementById('btn-recreate-in-3d');
+      const btnToggleLiveStream = document.getElementById('btn-toggle-live-stream');
+      const streamStatusPill = document.getElementById('stream-status-pill');
+
+      // Header: Download Report Button
+      const btnDownloadReport = document.getElementById('btn-download-report');
+      if (btnDownloadReport) {
+        btnDownloadReport.addEventListener('click', downloadCurrentReport);
+      }
+
+      // Stop & Return to Calma Handlers across modals
+      const btnMicroStopCalm = document.getElementById('btn-microscope-stop-calm');
+      if (btnMicroStopCalm) btnMicroStopCalm.addEventListener('click', () => stopActivityAndReturnCalm(true));
+
+      const btnDiagStopCalm = document.getElementById('btn-diag-stop-calm');
+      if (btnDiagStopCalm) btnDiagStopCalm.addEventListener('click', () => stopActivityAndReturnCalm(true));
+
+      const btnIngestionStopCalm = document.getElementById('btn-ingestion-stop-calm');
+      if (btnIngestionStopCalm) btnIngestionStopCalm.addEventListener('click', () => stopActivityAndReturnCalm(true));
+
+      const btnTelemStopCalm = document.getElementById('btn-telemetry-stop-calm');
+      if (btnTelemStopCalm) btnTelemStopCalm.addEventListener('click', () => stopActivityAndReturnCalm(false));
+
+      // Interactive DEMO Guide logic
+      const btnOpenDemo = document.getElementById('btn-open-demo');
+      const modalDemo = document.getElementById('modal-demo');
+      const btnCloseDemo = document.getElementById('btn-close-demo-modal');
+      const btnDemoNext = document.getElementById('btn-demo-next');
+      const btnDemoPrev = document.getElementById('btn-demo-prev');
+      const btnDemoAction = document.getElementById('btn-demo-action');
+      const demoBadge = document.getElementById('demo-step-badge');
+      const demoTitle = document.getElementById('demo-step-title');
+      const demoDesc = document.getElementById('demo-step-desc');
+
+      const DEMO_STEPS = [
+        {
+          badge: "PASO 1 DE 5: EXPLORACIÓN 360°",
+          title: "Navegación Anatómica y Rotación 360°",
+          desc: "Haz clic y arrastra con el ratón o desliza con el dedo para girar el cerebro en 360°. Usa la rueda para acercar o alejar. Haz clic en las esferas luminosas para inspeccionar las áreas anatómicas y sus funciones.",
+          actionText: "Centrar Vista 360°",
+          onAction: () => {
+            camera.position.set(0, 2.2, 7.8);
+            controls.target.set(0, 0, 0);
+            controls.update();
+            showToast("Vista 360° centrada en posición anatómica");
+          }
+        },
+        {
+          badge: "PASO 2 DE 5: ACTIVIDADES HUMANAS & CLÍNICA",
+          title: "Seleccionar Tareas y Protocolos",
+          desc: "En el panel izquierdo ('Biblioteca Funcional'), explora carpetas de tareas vitales (comer, dormir) o patológicas (TDAH, crisis epilépticas, ACV). Al elegir una, verás cómo viaja la energía bioeléctrica en tiempo real por los axones.",
+          actionText: "Probar: Comer (Apetito)",
+          onAction: () => {
+            const comer = MASTER_DATA.find(it => it.id === 'comer');
+            if (comer) activateActivity(comer);
+          }
+        },
+        {
+          badge: "PASO 3 DE 5: TELEMETRÍA Y EEG EN VIVO",
+          title: "Medición Cuantitativa y Trazado EEG",
+          desc: "El panel derecho muestra el osciloscopio EEG en vivo, descomposición espectral FFT (Delta, Theta, Alfa, Beta, Gamma), potencial en milivoltios y velocidad de conducción axonal. Al presionar 'Guardar ✕', tus mediciones quedan salvaguardadas.",
+          actionText: "Ver Potenciales y EEG",
+          onAction: () => {
+            panelDiagnosis.classList.remove('hidden');
+            panelDiagnosis.classList.add('flex');
+            reopenDiagBtn.classList.add('hidden');
+            showToast("Telemetría activa y salvaguardada en sesión");
+          }
+        },
+        {
+          badge: "PASO 4 DE 5: MICROSCOPIO CELULAR",
+          title: "Escala Nanométrica y Patch-Clamp",
+          desc: "Pulsa el botón 'Microscopio' en la cabecera para descender a la hendidura sináptica de 20 nm. Podrás observar la liberación de vesículas, el osciloscopio Hodgkin-Huxley de fijación de voltaje y hacer zoom directo a la neurona.",
+          actionText: "Abrir Microscopio Celular",
+          onAction: () => {
+            panelMicroscope.classList.remove('hidden');
+            microscopeOpen = true;
+            resizeMicroCanvases();
+            modalDemo.classList.add('hidden');
+            showToast("🔬 Microscopio de alta resolución desplegado");
+          }
+        },
+        {
+          badge: "PASO 5 DE 5: RETORNO A LA CALMA Y REPORTE",
+          title: "Restablecimiento Vagal y Descarga",
+          desc: "Cuando desees detener una crisis o actividad, usa el botón '🕊️ CALMA' o los botones 'Detener y Calma'. Luego, usa 'Descargar Reporte' en la barra superior para exportar el estudio en formato JSON para el historial clínico.",
+          actionText: "Ejecutar CALMA y Finalizar",
+          onAction: () => {
+            stopActivityAndReturnCalm(true);
+            modalDemo.classList.add('hidden');
+          }
+        }
+      ];
+
+      let currentDemoIndex = 0;
+      function updateDemoUI() {
+        const step = DEMO_STEPS[currentDemoIndex];
+        demoBadge.textContent = step.badge;
+        demoTitle.textContent = step.title;
+        demoDesc.textContent = step.desc;
+        btnDemoAction.innerHTML = `<span>⚡ ${step.actionText}</span>`;
+
+        btnDemoPrev.disabled = currentDemoIndex === 0;
+        btnDemoPrev.className = currentDemoIndex === 0 
+          ? "px-3 py-1.5 rounded-lg bg-slate-800 text-slate-500 font-mono text-xs opacity-50 cursor-not-allowed"
+          : "px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs transition-all cursor-pointer";
+
+        btnDemoNext.textContent = currentDemoIndex === DEMO_STEPS.length - 1 ? "Finalizar ✓" : "Siguiente →";
+      }
+
+      if (btnOpenDemo) {
+        btnOpenDemo.addEventListener('click', () => {
+          currentDemoIndex = 0;
+          updateDemoUI();
+          modalDemo.classList.remove('hidden');
+        });
+      }
+
+      if (btnCloseDemo) {
+        btnCloseDemo.addEventListener('click', () => {
+          modalDemo.classList.add('hidden');
+        });
+      }
+
+      if (btnDemoNext) {
+        btnDemoNext.addEventListener('click', () => {
+          if (currentDemoIndex < DEMO_STEPS.length - 1) {
+            currentDemoIndex++;
+            updateDemoUI();
+          } else {
+            modalDemo.classList.add('hidden');
+            showToast("Guía DEMO completada con éxito");
+          }
+        });
+      }
+
+      if (btnDemoPrev) {
+        btnDemoPrev.addEventListener('click', () => {
+          if (currentDemoIndex > 0) {
+            currentDemoIndex--;
+            updateDemoUI();
+          }
+        });
+      }
+
+      if (btnDemoAction) {
+        btnDemoAction.addEventListener('click', () => {
+          if (DEMO_STEPS[currentDemoIndex].onAction) {
+            DEMO_STEPS[currentDemoIndex].onAction();
+          }
+        });
+      }
+
+      // Safe Preservation on Telemetry Close
+      btnCloseDiag.addEventListener('click', () => {
+        updateJsonEditor(currentActiveActivity);
+        panelDiagnosis.classList.add('hidden');
+        panelDiagnosis.classList.remove('flex');
+        reopenDiagBtn.classList.remove('hidden');
+        showToast("💾 Telemetría y mediciones salvaguardadas en la sesión");
+      });
+
+      // Live streaming toggle
+      if (btnToggleLiveStream) {
+        btnToggleLiveStream.addEventListener('click', () => {
+          liveStreamingActive = !liveStreamingActive;
+          if (liveStreamingActive) {
+            btnToggleLiveStream.textContent = "PAUSAR FLUJO";
+            btnToggleLiveStream.className = "px-2 py-1 rounded text-[10px] font-bold bg-emerald-700/80 hover:bg-emerald-600 text-white border border-emerald-400/50 transition-all cursor-pointer";
+            if (streamStatusPill) {
+              streamStatusPill.textContent = "ACTIVO";
+              streamStatusPill.className = "text-[9px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700";
+            }
+            showToast("Flujo de Telemetría Reanudado (256 Hz)");
+          } else {
+            btnToggleLiveStream.textContent = "REANUDAR";
+            btnToggleLiveStream.className = "px-2 py-1 rounded text-[10px] font-bold bg-amber-700/80 hover:bg-amber-600 text-white border border-amber-400/50 transition-all cursor-pointer";
+            if (streamStatusPill) {
+              streamStatusPill.textContent = "PAUSADO";
+              streamStatusPill.className = "text-[9px] px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-700";
+            }
+            showToast("Flujo de Telemetría Pausado");
+          }
+        });
+      }
+
+      // Open Diagnosis Modal
+      if (btnRunDiagnosis) {
+        btnRunDiagnosis.addEventListener('click', () => {
+          runIntelligentClinicalDiagnosis(currentActiveActivity);
+        });
+      }
+
+      function closeDiagnosisModal() {
+        if (modalDiagnosis) {
+          modalDiagnosis.classList.add('hidden');
+          showToast("Regresando a la vista principal 360°");
+        }
+      }
+      if (btnCloseDiagModal) btnCloseDiagModal.addEventListener('click', closeDiagnosisModal);
+      if (btnCloseDiagModalBottom) btnCloseDiagModalBottom.addEventListener('click', closeDiagnosisModal);
+
+      // Recreate Pathology in 3D Button inside Diagnosis Modal
+      if (btnRecreateIn3D) {
+        btnRecreateIn3D.addEventListener('click', () => {
+          modalDiagnosis.classList.add('hidden');
+          reconstruct3DFromClinicalData(currentActiveActivity);
+          if (currentActiveActivity.focalHub && BRAIN_HUBS[currentActiveActivity.focalHub]) {
+            zoomToNeuron(BRAIN_HUBS[currentActiveActivity.focalHub]);
+          }
+          showToast(`Recreando Patología en 3D: ${currentActiveActivity.name}`);
+        });
+      }
+
+      // Open Ingestion Modal
+      if (btnOpenIngestion) {
+        btnOpenIngestion.addEventListener('click', () => {
+          modalIngestion.classList.remove('hidden');
+          updateJsonEditor(currentActiveActivity);
+        });
+      }
+
+      function closeIngestionModal() {
+        if (modalIngestion) {
+          modalIngestion.classList.add('hidden');
+          showToast("Regresando al mapa principal 360°");
+        }
+      }
+      if (btnCloseIngestion) btnCloseIngestion.addEventListener('click', closeIngestionModal);
+      if (btnCloseIngestionBottom) btnCloseIngestionBottom.addEventListener('click', closeIngestionModal);
+
+      // Drag and Drop Clinical Files
+      if (dropZone && fileInput) {
+        dropZone.addEventListener('click', () => fileInput.click());
+        btnBrowseFile.addEventListener('click', (e) => {
+          e.stopPropagation();
+          fileInput.click();
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          dropZone.classList.add('border-emerald-300', 'bg-slate-900');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+          dropZone.classList.remove('border-emerald-300', 'bg-slate-900');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          dropZone.classList.remove('border-emerald-300', 'bg-slate-900');
+          if (e.dataTransfer.files.length > 0) {
+            handleUploadedFile(e.dataTransfer.files[0]);
+          }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+          if (e.target.files.length > 0) {
+            handleUploadedFile(e.target.files[0]);
+          }
+        });
+      }
+
+      function handleUploadedFile(file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const rawContent = event.target.result;
+            let parsedData = null;
+
+            if (file.name.endsWith('.json') || rawContent.trim().startsWith('{')) {
+              parsedData = JSON.parse(rawContent);
+            } else {
+              parsedData = parseCSVTelemetry(rawContent);
+            }
+
+            processImportedClinicalData(parsedData, file.name);
+          } catch (err) {
+            showToast("Error al procesar archivo: Formato no compatible");
+          }
+        };
+        reader.readAsText(file);
+      }
+
+      function parseCSVTelemetry(csvText) {
+        const lines = csvText.split('\n').filter(l => l.trim().length > 0);
+        return {
+          studyName: "Estudio CSV Importado",
+          voltageMilliVolts: "-58 mV",
+          latencyMs: "16 ms",
+          conductionVelocityMs: "50 m/s",
+          eegDominantFrequency: "Beta (20 Hz)",
+          synapticPathwayRoute: ["pfc_left", "thalamus", "motor_cortex", "brainstem"],
+          intensity: 75,
+          clinicalImpression: `Datos procesados desde archivo CSV (${lines.length} registros temporales).`
+        };
+      }
+
+      function processImportedClinicalData(parsed, filename = "Archivo Clínico") {
+        const newActivity = {
+          id: `custom_${Date.now()}`,
+          name: parsed.studyName || filename.replace(/\.[^/.]+$/, ""),
+          cat: "custom",
+          icon: "📁",
+          desc: parsed.clinicalImpression || "Datos clínicos procesados directamente desde el archivo o API del paciente.",
+          route: parsed.synapticPathwayRoute || parsed.route || ["thalamus", "pfc_left", "motor_cortex"],
+          transmitter: parsed.neurotransmitters || "Dopamina, Glutamato, GABA",
+          intensity: parsed.intensity || 75,
+          eegFreq: parsed.eegDominantFrequency || "Alfa/Beta Dinámico",
+          eegSpeed: 0.045,
+          voltage: parsed.voltageMilliVolts || parsed.voltage || "-65 mV",
+          latency: parsed.latencyMs || parsed.latency || "16 ms",
+          velocity: parsed.conductionVelocityMs || parsed.velocity || "52 m/s",
+          fft: [
+            parsed.fftPowerSpectrumPercentage?.delta || 20,
+            parsed.fftPowerSpectrumPercentage?.theta || 30,
+            parsed.fftPowerSpectrumPercentage?.alfa || 50,
+            parsed.fftPowerSpectrumPercentage?.beta || 25,
+            parsed.fftPowerSpectrumPercentage?.gamma || 10
+          ],
+          lobes: parsed.anatomicalLobes || ["Corteza Cerebral", "Tálamo"],
+          clinical: parsed.clinicalImpression || `Estudio analizado con éxito desde ${filename}.`,
+          focalHub: parsed.synapticPathwayRoute ? parsed.synapticPathwayRoute[0] : "pfc_left"
+        };
+
+        MASTER_DATA.unshift(newActivity);
+        currentCategory = "all";
+        renderActivitiesList();
+        activateActivity(newActivity);
+        modalIngestion.classList.add('hidden');
+        showToast(`Datos Cargados: Reconstruyendo Conectoma 3D`);
+      }
+
+      if (btnApplyJsonText) {
+        btnApplyJsonText.addEventListener('click', () => {
+          const editor = document.getElementById('json-editor-input');
+          try {
+            const data = JSON.parse(editor.value);
+            processImportedClinicalData(data, "Edición JSON");
+          } catch (e) {
+            showToast("Error de sintaxis en el JSON");
+          }
+        });
+      }
+
+      document.querySelectorAll('.btn-load-preset').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const presetKey = e.currentTarget.getAttribute('data-preset');
+          const preset = CLINICAL_PRESETS[presetKey];
+          if (preset) {
+            activateActivity(preset);
+            renderActivitiesList();
+            modalIngestion.classList.add('hidden');
+            showToast(`Estudio Cargado: ${preset.name}`);
+          }
+        });
+      });
+
+      if (btnCloseInspector && inspectorBox) {
+        btnCloseInspector.addEventListener('click', () => {
+          inspectorBox.classList.add('hidden');
+          showToast("Inspector Anatómico Ocultado");
+        });
+      }
+
+      if (btnToggleMicro) {
+        btnToggleMicro.addEventListener('click', () => {
+          microscopeOpen = !microscopeOpen;
+          if (microscopeOpen) {
+            panelMicroscope.classList.remove('hidden');
+            resizeMicroCanvases();
+            showToast("🔬 Microscopio Celular Activado");
+          } else {
+            panelMicroscope.classList.add('hidden');
+            showToast("Regresando a la vista principal 360°");
+          }
+        });
+      }
+
+      if (btnCloseMicro) {
+        btnCloseMicro.addEventListener('click', () => {
+          microscopeOpen = false;
+          panelMicroscope.classList.add('hidden');
+          showToast("Regresando a la vista principal 360°");
+        });
+      }
+
+      // Global ESC key listener to close active modals
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          let closedSomething = false;
+          if (modalDemo && !modalDemo.classList.contains('hidden')) {
+            modalDemo.classList.add('hidden');
+            closedSomething = true;
+          } else if (modalIngestion && !modalIngestion.classList.contains('hidden')) {
+            modalIngestion.classList.add('hidden');
+            closedSomething = true;
+          } else if (modalDiagnosis && !modalDiagnosis.classList.contains('hidden')) {
+            modalDiagnosis.classList.add('hidden');
+            closedSomething = true;
+          } else if (panelMicroscope && !panelMicroscope.classList.contains('hidden')) {
+            panelMicroscope.classList.add('hidden');
+            microscopeOpen = false;
+            closedSomething = true;
+          } else if (inspectorBox && !inspectorBox.classList.contains('hidden')) {
+            inspectorBox.classList.add('hidden');
+            closedSomething = true;
+          } else if (panelDiagnosis && !panelDiagnosis.classList.contains('hidden')) {
+            updateJsonEditor(currentActiveActivity);
+            panelDiagnosis.classList.add('hidden');
+            panelDiagnosis.classList.remove('flex');
+            reopenDiagBtn.classList.remove('hidden');
+            closedSomething = true;
+          } else if (panelActivities && !panelActivities.classList.contains('hidden')) {
+            panelActivities.classList.add('hidden');
+            reopenActBtn.classList.remove('hidden');
+            closedSomething = true;
+          }
+          if (closedSomething) {
+            showToast("Regresando a la vista principal 360°");
+          }
+        }
+      });
+
+      if (btnFocusCurrentHub) {
+        btnFocusCurrentHub.addEventListener('click', () => {
+          zoomToNeuron(currentInspectedHub);
+        });
+      }
+
+      // Drawer minimize and reopen
+      btnCloseAct.addEventListener('click', () => {
+        panelActivities.classList.add('hidden');
+        reopenActBtn.classList.remove('hidden');
+        showToast("Panel cerrado • Regresando al mapa principal");
+      });
+
+      reopenActBtn.addEventListener('click', () => {
+        panelActivities.classList.remove('hidden');
+        reopenActBtn.classList.add('hidden');
+      });
+
+      reopenDiagBtn.addEventListener('click', () => {
+        panelDiagnosis.classList.remove('hidden');
+        panelDiagnosis.classList.add('flex');
+        reopenDiagBtn.classList.add('hidden');
+      });
+
+      // Clear Screen Immersion Mode
+      let allHidden = false;
+      btnImmersion.addEventListener('click', () => {
+        allHidden = !allHidden;
+        if (allHidden) {
+          panelActivities.classList.add('hidden');
+          panelDiagnosis.classList.add('hidden');
+          panelDiagnosis.classList.remove('flex');
+          reopenActBtn.classList.remove('hidden');
+          reopenDiagBtn.classList.remove('hidden');
+          immersionText.textContent = "Ver Consolas";
+          showToast("Vista 360° Despejada para Estudio Libre");
+        } else {
+          panelActivities.classList.remove('hidden');
+          panelDiagnosis.classList.remove('hidden');
+          panelDiagnosis.classList.add('flex');
+          reopenActBtn.classList.add('hidden');
+          reopenDiagBtn.classList.add('hidden');
+          immersionText.textContent = "Despejar";
+        }
+      });
+
+      // White Matter Tractography Toggle
+      btnToggleTracts.addEventListener('click', () => {
+        tractographyVisible = !tractographyVisible;
+        tractMeshGroup.visible = tractographyVisible;
+        showToast(tractographyVisible ? "Fascículos de Sustancia Blanca Visibles" : "Tractografía Oculta");
+      });
+
+      // Category Folder Tabs
+      document.querySelectorAll('.cat-tab').forEach(tab => {
+        tab.addEventListener('click', (e) => {
+          document.querySelectorAll('.cat-tab').forEach(t => {
+            t.className = "cat-tab px-2.5 py-1 rounded-md font-mono font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer";
+          });
+          e.target.className = "cat-tab px-2.5 py-1 rounded-md font-mono font-medium transition-all bg-cyan-600 text-white shadow cursor-pointer";
+          currentCategory = e.target.getAttribute('data-cat');
+          renderActivitiesList();
+        });
+      });
+
+      // Real-time search filter
+      document.getElementById('search-input').addEventListener('input', (e) => {
+        searchQuery = e.target.value;
+        renderActivitiesList();
+      });
+
+      // Calma / Homeostasis reset button in header
+      const btnCalm = document.getElementById('btn-calm');
+      if (btnCalm) {
+        btnCalm.addEventListener('click', () => {
+          stopActivityAndReturnCalm(false);
+        });
+      }
+
+      // Re-center anatomical camera
+      document.getElementById('btn-reset-cam').addEventListener('click', () => {
+        camera.position.set(0, 2.2, 7.8);
+        controls.target.set(0, 0, 0);
+        controls.update();
+        showToast("Coordenadas Anatómicas Centradas");
+      });
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      resizeEEG();
+      resizeMicroCanvases();
+    }
+
+    let clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (isTransitioningCamera && cameraTargetPos && controlsTargetPos) {
+        camera.position.lerp(cameraTargetPos, 0.06);
+        controls.target.lerp(controlsTargetPos, 0.06);
+        if (camera.position.distanceTo(cameraTargetPos) < 0.05) {
+          isTransitioningCamera = false;
+        }
+      }
+
+      controls.update();
+
+      const azimuthDeg = ((controls.getAzimuthalAngle() * (180 / Math.PI)) + 360) % 360;
+      const angleEl = document.getElementById('telemetry-angle');
+      if (angleEl) angleEl.textContent = `${azimuthDeg.toFixed(1)}°`;
+
+      if (neuronParticles && controls.autoRotate) {
+        neuronParticles.rotation.y += 0.0004;
+      }
+      if (starfieldParticles) {
+        starfieldParticles.rotation.y += 0.00015;
+      }
+
+      impulses.forEach((imp) => {
+        imp.progress += imp.speed;
+        if (imp.progress > 1) {
+          imp.progress = 0;
+          playSynapticSound(300 + Math.random() * 200, 'sine');
+        }
+        const point = imp.curve.getPoint(imp.progress);
+        if (point) {
+          imp.mesh.position.copy(point);
+        }
+      });
+
+      const time = clock.getElapsedTime();
+      Object.values(hubMeshMap).forEach(mesh => {
+        if (mesh.scale.x > 1.1) {
+          const s = 1.45 + Math.sin(time * 5.5) * 0.15;
+          mesh.scale.set(s, s, s);
+        }
+      });
+
+      drawEEG();
+      if (microscopeOpen) {
+        drawSynapseMicroscope();
+        drawPatchClampOscilloscope();
+      }
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function() {
+      init3D();
+      renderActivitiesList();
+      setupEventListeners();
+      animate();
+    };
+  </script>
+</body>
+</html>
